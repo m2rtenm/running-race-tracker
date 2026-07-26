@@ -1,0 +1,290 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, 'Segoe UI', Roboto, sans-serif;
+  background: #f4f7fb;
+  color: #162033;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f4f7fb;
+  color: #162033;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(120deg, #14213d, #274c77);
+  color: white;
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: 0 18px 42px rgba(20, 33, 61, 0.16);
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  max-width: 680px;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.6;
+}
+
+.panel {
+  background: white;
+  border: 1px solid #dce4f0;
+  border-radius: 24px;
+  box-shadow: 0 12px 24px rgba(22, 32, 51, 0.05);
+  padding: 1.25rem;
+}
+
+.panel-heading {
+  margin-bottom: 1rem;
+}
+
+.panel-heading h2 {
+  margin: 0 0 0.25rem;
+}
+
+.panel-heading p {
+  margin: 0;
+  color: #5d6a82;
+}
+
+.race-form {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: #5d6a82;
+}
+
+input {
+  border-radius: 12px;
+  border: 1px solid #dce4f0;
+  padding: 0.75rem 0.9rem;
+  color: #162033;
+}
+
+button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.8rem 1rem;
+  background: #3d8bff;
+  color: white;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+button:hover {
+  background: #1f5ed2;
+}
+
+button.secondary {
+  background: #e9eef7;
+  color: #162033;
+}
+
+button.secondary:hover {
+  background: #dce4f0;
+}
+
+.delete-btn {
+  background: #fff0f0;
+  color: #c94f4f;
+}
+
+.delete-btn:hover {
+  background: #ffd9d9;
+}
+
+.status {
+  margin-top: 0.8rem;
+  color: #1f5ed2;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.stat-card {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  border: 1px solid #dce4f0;
+  border-radius: 18px;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8fbff, #f3f6fc);
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #e8f1ff;
+  color: #1f5ed2;
+}
+
+.stat-card h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  color: #5d6a82;
+}
+
+.stat-card p {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.stats-section + .stats-section {
+  margin-top: 1rem;
+}
+
+.chart-section {
+  margin: 1rem 0 1.25rem;
+}
+
+.chart-card,
+.table-card {
+  border: 1px solid #dce4f0;
+  border-radius: 18px;
+  padding: 1rem;
+  background: #fcfdff;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.chart-header h3,
+.table-card h3 {
+  margin: 0 0 0.15rem;
+}
+
+.chart-header p {
+  margin: 0;
+  color: #5d6a82;
+  font-size: 0.95rem;
+}
+
+.chart-area {
+  height: 280px;
+}
+
+.stats-grid-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.full-width {
+  margin-top: 1rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.75rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #dce4f0;
+}
+
+th {
+  color: #5d6a82;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.records-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.race-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.race-item {
+  border: 1px solid #dce4f0;
+  border-radius: 16px;
+  padding: 0.95rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.race-meta {
+  color: #5d6a82;
+  font-size: 0.95rem;
+}
+
+.empty {
+  color: #5d6a82;
+}
+
+@media (max-width: 760px) {
+  .race-form {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .race-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
