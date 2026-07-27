@@ -39,16 +39,146 @@ variable "bucket_name" {
   default = "running-race-tracker-app"
 }
 
+# ============================================================================
+# COGNITO USER POOL FOR AUTHENTICATION
+# ============================================================================
+
+resource "aws_cognito_user_pool" "main" {
+  name = "running-race-tracker"
+
+  password_policy {
+    minimum_length    = 8
+    require_lowercase = true
+    require_numbers   = true
+    require_symbols   = false
+    require_uppercase = true
+  }
+
+  auto_verified_attributes = ["email"]
+  mfa_configuration        = "OFF"
+
+  schema {
+    name                     = "email"
+    attribute_data_type      = "String"
+    required                 = true
+    mutable                  = true
+  }
+
+  schema {
+    name                     = "name"
+    attribute_data_type      = "String"
+    mutable                  = true
+  }
+}
+
+resource "aws_cognito_user_pool_client" "main" {
+  name                = "running-race-tracker-web"
+  user_pool_id        = aws_cognito_user_pool.main.id
+  generate_secret     = false
+  explicit_auth_flows = [
+    "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_REFRESH_TOKEN_AUTH",
+    "ALLOW_USER_SRP_AUTH"
+  ]
+
+  allowed_oauth_flows = ["code"]
+  allowed_oauth_scopes = ["openid", "email", "profile"]
+  callback_urls = [
+    "http://localhost:3000/callback",
+    "https://${aws_cloudfront_distribution.website.domain_name}/callback"
+  ]
+  logout_urls = [
+    "http://localhost:3000/logout",
+    "https://${aws_cloudfront_distribution.website.domain_name}/logout"
+  ]
+  allowed_oauth_flows_user_pool_client = true
+}
+
+# ============================================================================
+# DYNAMODB TABLES
+# ============================================================================
+
 resource "aws_dynamodb_table" "races" {
-  name         = "running-race-tracker"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "raceId"
+  name           = "running-race-tracker-races"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "userId"
+  range_key      = "raceId"
+  stream_specification {
+    stream_view_type = "NEW_AND_OLD_IMAGES"
+    stream_enabled   = true
+  }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
 
   attribute {
     name = "raceId"
     type = "S"
   }
+
+  attribute {
+    name = "date"
+    type = "S"
+  }
+
+  attribute {
+    name = "competitionName"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "userIdDateIndex"
+    hash_key        = "userId"
+    range_key       = "date"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "userIdCompetitionIndex"
+    hash_key        = "userId"
+    range_key       = "competitionName"
+    projection_type = "ALL"
+  }
+
+  tags = {
+    Environment = "production"
+    Application = "running-race-tracker"
+  }
 }
+
+resource "aws_dynamodb_table" "strava_imports" {
+  name         = "running-race-tracker-strava-imports"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "userId"
+  range_key    = "importId"
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "importId"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expiryDate"
+    enabled        = true
+  }
+
+  tags = {
+    Environment = "production"
+    Application = "running-race-tracker"
+  }
+}
+
+
+# ============================================================================
+# IAM ROLE AND POLICIES FOR LAMBDA
+# ============================================================================
 
 resource "aws_iam_role" "lambda_exec" {
   name = "running-race-tracker-lambda"
@@ -68,24 +198,46 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy" "dynamodb_write" {
-  name = "running-race-tracker-dynamodb"
+resource "aws_iam_role_policy" "dynamodb_races" {
+  name = "running-race-tracker-dynamodb-races"
   role = aws_iam_role.lambda_exec.id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "dynamodb:PutItem",
-        "dynamodb:GetItem",
-        "dynamodb:Scan",
-        "dynamodb:DeleteItem"
-      ]
-      Resource = aws_dynamodb_table.races.arn
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = [
+          aws_dynamodb_table.races.arn,
+          "${aws_dynamodb_table.races.arn}/index/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = aws_dynamodb_table.strava_imports.arn
+      }
+    ]
   })
 }
+
+# ============================================================================
+# LAMBDA FUNCTION
+# ============================================================================
 
 resource "aws_lambda_function" "api" {
   function_name = "running-race-tracker-api"
@@ -95,11 +247,16 @@ resource "aws_lambda_function" "api" {
   filename      = data.archive_file.lambda.output_path
   source_code_hash = data.archive_file.lambda.output_base64sha256
   timeout       = 30
+  memory_size   = 512
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.races.name
-      AWS_REGION = var.aws_region
+      RACES_TABLE_NAME         = aws_dynamodb_table.races.name
+      STRAVA_IMPORTS_TABLE_NAME = aws_dynamodb_table.strava_imports.name
+      AWS_REGION              = var.aws_region
+      COGNITO_REGION          = var.aws_region
+      COGNITO_USER_POOL_ID    = aws_cognito_user_pool.main.id
+      COGNITO_CLIENT_ID       = aws_cognito_user_pool_client.main.id
     }
   }
 }
@@ -119,6 +276,74 @@ resource "aws_lambda_permission" "apigw" {
 }
 
 data "aws_caller_identity" "current" {}
+
+# ============================================================================
+# API GATEWAY V2 (HTTP)
+# ============================================================================
+
+resource "aws_apigatewayv2_api" "http" {
+  name          = "running-race-tracker-api"
+  protocol_type = "HTTP"
+  cors_configuration {
+    allow_credentials = true
+    allow_headers = [
+      "content-type",
+      "authorization",
+      "x-amz-date",
+      "x-amz-security-token"
+    ]
+    allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_origins = [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "https://${aws_cloudfront_distribution.website.domain_name}"
+    ]
+    expose_headers = ["content-type", "x-amzn-requestid"]
+    max_age        = 300
+  }
+}
+
+resource "aws_apigatewayv2_stage" "default" {
+  api_id      = aws_apigatewayv2_api.http.id
+  name        = "$default"
+  auto_deploy = true
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_logs.arn
+    format = jsonencode({
+      requestId      = "$context.requestId"
+      httpMethod     = "$context.httpMethod"
+      resourcePath   = "$context.resourcePath"
+      status         = "$context.status"
+      protocol       = "$context.protocol"
+      requestTime    = "$context.requestTime"
+      responseLength = "$context.responseLength"
+      integrationLatency = "$context.integration.latency"
+      error          = "$context.error.message"
+    })
+  }
+}
+
+resource "aws_cloudwatch_log_group" "api_logs" {
+  name              = "/aws/api-gateway/running-race-tracker"
+  retention_in_days = 7
+}
+
+resource "aws_apigatewayv2_integration" "lambda" {
+  api_id                 = aws_apigatewayv2_api.http.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.api.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "default" {
+  api_id    = aws_apigatewayv2_api.http.id
+  route_key = "ANY /{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+# ============================================================================
+# S3 WEBSITE BUCKET
+# ============================================================================
 
 resource "aws_s3_bucket" "website" {
   bucket = var.bucket_name
@@ -156,6 +381,10 @@ resource "aws_s3_bucket_policy" "website" {
 
   depends_on = [aws_s3_bucket_public_access_block.website]
 }
+
+# ============================================================================
+# CLOUDFRONT DISTRIBUTION
+# ============================================================================
 
 resource "aws_cloudfront_distribution" "website" {
   enabled             = true
@@ -203,29 +432,9 @@ resource "aws_cloudfront_distribution" "website" {
   }
 }
 
-resource "aws_apigatewayv2_api" "http" {
-  name          = "running-race-tracker-api"
-  protocol_type = "HTTP"
-}
-
-resource "aws_apigatewayv2_stage" "default" {
-  api_id      = aws_apigatewayv2_api.http.id
-  name        = "$default"
-  auto_deploy = true
-}
-
-resource "aws_apigatewayv2_integration" "lambda" {
-  api_id                 = aws_apigatewayv2_api.http.id
-  integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.api.invoke_arn
-  payload_format_version = "2.0"
-}
-
-resource "aws_apigatewayv2_route" "default" {
-  api_id    = aws_apigatewayv2_api.http.id
-  route_key = "ANY /{proxy+}"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-}
+# ============================================================================
+# OUTPUTS
+# ============================================================================
 
 output "cloudfront_domain_name" {
   value = aws_cloudfront_distribution.website.domain_name
@@ -241,4 +450,20 @@ output "api_gateway_url" {
 
 output "bucket_name" {
   value = aws_s3_bucket.website.bucket
+}
+
+output "cognito_user_pool_id" {
+  value = aws_cognito_user_pool.main.id
+}
+
+output "cognito_user_pool_client_id" {
+  value = aws_cognito_user_pool_client.main.id
+}
+
+output "cognito_domain" {
+  value = aws_cognito_user_pool.main.name
+}
+
+output "races_table_name" {
+  value = aws_dynamodb_table.races.name
 }

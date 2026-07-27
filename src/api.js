@@ -1,15 +1,39 @@
+import { getAccessToken, refreshAccessToken, isTokenExpired } from './services/auth';
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 async function request(path, options = {}) {
+  let token = getAccessToken();
+
+  // Refresh token if expired
+  if (token && isTokenExpired(token)) {
+    try {
+      token = await refreshAccessToken();
+    } catch (error) {
+      // Token refresh failed, let request fail with 401
+      console.warn('Token refresh failed:', error);
+    }
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
     ...options,
+    headers,
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      // Token expired or invalid, clear auth
+      throw new Error('Unauthorized - please log in again');
+    }
     const payload = await response.text();
     throw new Error(payload || `Request failed (${response.status})`);
   }
@@ -36,4 +60,32 @@ export async function updateRace(raceId, race) {
 
 export async function deleteRaceById(raceId) {
   return request(`/races/${raceId}`, { method: 'DELETE' });
+}
+
+export async function getStats(endpoint = 'summary') {
+  return request(`/stats/${endpoint}`);
+}
+
+export async function getStatsSummary() {
+  return request('/stats/summary');
+}
+
+export async function getStatsByDistance() {
+  return request('/stats/by-distance');
+}
+
+export async function getStatsByYear() {
+  return request('/stats/by-year');
+}
+
+export async function getStatsByCompetition() {
+  return request('/stats/by-competition');
+}
+
+export async function getPersonalRecords() {
+  return request('/stats/prs');
+}
+
+export async function getConsistencyStats() {
+  return request('/stats/consistency');
 }
