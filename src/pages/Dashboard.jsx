@@ -62,10 +62,13 @@ function Dashboard({ onLogout }) {
   const { user } = useAuth();
   const [races, setRaces] = useState([]);
   const [form, setForm] = useState(emptyForm);
-  const [editingRaceId, setEditingRaceId] = useState(null);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const formRef = useRef(null);
+
+  // Inline editing state (in the race records table)
+  const [inlineEditId, setInlineEditId] = useState(null);
+  const [inlineEditForm, setInlineEditForm] = useState({});
 
   const loadRaces = useCallback(async () => {
     setIsLoading(true);
@@ -187,26 +190,57 @@ function Dashboard({ onLogout }) {
     setForm((current) => ({ ...current, [name]: value }));
   }
 
-  function startEdit(race) {
-    setEditingRaceId(race.id);
-    setForm({
+  function handleInlineChange(event) {
+    const { name, value } = event.target;
+    setInlineEditForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  function startInlineEdit(race) {
+    setInlineEditId(race.id);
+    setInlineEditForm({
       competitionName: race.competitionName || '',
       date: race.date || '',
       officialDistance: String(race.officialDistance ?? ''),
       officialResult: race.officialResult || '',
       actualDistance: String(race.actualDistance ?? ''),
     });
-    setStatus(`Editing ${race.competitionName}.`);
-    window.requestAnimationFrame(() => {
-      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      formRef.current?.querySelector('input[name="competitionName"]')?.focus();
-    });
   }
 
-  function cancelEdit() {
-    setEditingRaceId(null);
-    setForm(emptyForm);
-    setStatus('Edit cancelled.');
+  function cancelInlineEdit() {
+    setInlineEditId(null);
+    setInlineEditForm({});
+  }
+
+  async function saveInlineEdit() {
+    const id = inlineEditId;
+    const officialResultSeconds = parseResultToSeconds(inlineEditForm.officialResult);
+
+    if (!inlineEditForm.competitionName || !inlineEditForm.date || !inlineEditForm.officialDistance || !inlineEditForm.actualDistance || officialResultSeconds === null) {
+      setStatus('Please fill all required fields with valid values.');
+      return;
+    }
+
+    const updates = {
+      competitionName: inlineEditForm.competitionName.trim(),
+      date: inlineEditForm.date,
+      officialDistance: Number(inlineEditForm.officialDistance),
+      officialResult: inlineEditForm.officialResult.trim(),
+      officialResultSeconds,
+      actualDistance: Number(inlineEditForm.actualDistance),
+    };
+
+    setRaces((current) => current.map((r) => r.id === id ? { ...r, ...updates } : r));
+    setInlineEditId(null);
+    setInlineEditForm({});
+
+    try {
+      const updated = await updateRace(id, updates);
+      setRaces((current) => current.map((r) => r.id === id ? normalizeRace(updated) : r));
+      setStatus(`Updated ${updates.competitionName}.`);
+    } catch (error) {
+      console.error(error);
+      setStatus('Updated locally, but cloud sync failed.');
+    }
   }
 
   async function handleSubmit(event) {
@@ -227,30 +261,6 @@ function Dashboard({ onLogout }) {
       officialResultSeconds,
       actualDistance: Number(form.actualDistance),
     };
-
-    if (editingRaceId) {
-      const nextRace = { ...race, id: editingRaceId };
-      setRaces((current) => current.map((item) => (item.id === editingRaceId ? nextRace : item)));
-      setForm(emptyForm);
-      setEditingRaceId(null);
-
-      try {
-        const updated = await updateRace(editingRaceId, {
-          competitionName: nextRace.competitionName,
-          date: nextRace.date,
-          officialDistance: nextRace.officialDistance,
-          officialResult: nextRace.officialResult,
-          officialResultSeconds: nextRace.officialResultSeconds,
-          actualDistance: nextRace.actualDistance,
-        });
-        setRaces((current) => current.map((item) => (item.id === editingRaceId ? normalizeRace(updated) : item)));
-        setStatus(`Updated ${nextRace.competitionName} on ${formatDate(nextRace.date)}.`);
-      } catch (error) {
-        console.error(error);
-        setStatus('Updated locally, but the cloud backend was not available.');
-      }
-      return;
-    }
 
     setRaces((current) => [race, ...current]);
     setForm(emptyForm);
@@ -335,17 +345,9 @@ function Dashboard({ onLogout }) {
             <input name="actualDistance" type="number" step="0.01" min="0.01" value={form.actualDistance} onChange={handleChange} required />
           </label>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button type="submit">{editingRaceId ? 'Update race' : 'Save race'}</button>
-            {editingRaceId ? (
-              <button type="button" className="secondary" onClick={cancelEdit}>Cancel</button>
-            ) : null}
+            <button type="submit">Save race</button>
           </div>
         </form>
-        {editingRaceId ? (
-          <p className="status" style={{ marginTop: '8px' }}>
-            Editing an existing race — change the fields above and press Update.
-          </p>
-        ) : null}
         {status ? <p className="status">{status}</p> : null}
         {isLoading ? <p className="status">Syncing with the backend…</p> : null}
       </section>
@@ -440,25 +442,71 @@ function Dashboard({ onLogout }) {
           <h2>Race records</h2>
           <button type="button" className="secondary" onClick={handleClear}>Clear all</button>
         </div>
-        <div className="race-list">
-          {sortedRaces.length === 0 ? (
-            <p className="empty">No races added yet.</p>
-          ) : (
-            sortedRaces.map((race) => (
-              <article key={race.id} className="race-item">
-                <div>
-                  <strong>{race.competitionName}</strong>
-                  <div className="race-meta">{formatDate(race.date)} · {Number(race.officialDistance).toFixed(1)} km · result {race.officialResult}</div>
-                  <div className="race-meta">Actual distance: {Number(race.actualDistance).toFixed(1)} km</div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button type="button" className="secondary" onClick={() => startEdit(race)}>Edit</button>
-                  <button type="button" className="delete-btn" onClick={() => handleDelete(race.id)}>Delete</button>
-                </div>
-              </article>
-            ))
-          )}
-        </div>
+        {sortedRaces.length === 0 ? (
+          <p className="empty">No races added yet.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="race-records-table">
+              <thead>
+                <tr>
+                  <th>Competition</th>
+                  <th>Date</th>
+                  <th>Official dist.</th>
+                  <th>Actual dist.</th>
+                  <th>Official result</th>
+                  <th style={{ width: '120px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedRaces.map((race) => {
+                  const isEditing = inlineEditId === race.id;
+                  return (
+                    <tr key={race.id} className={isEditing ? 'editing-row' : ''}>
+                      <td>
+                        {isEditing
+                          ? <input className="inline-input" name="competitionName" value={inlineEditForm.competitionName} onChange={handleInlineChange} />
+                          : race.competitionName}
+                      </td>
+                      <td>
+                        {isEditing
+                          ? <input className="inline-input" name="date" type="date" value={inlineEditForm.date} onChange={handleInlineChange} />
+                          : formatDate(race.date)}
+                      </td>
+                      <td>
+                        {isEditing
+                          ? <input className="inline-input" name="officialDistance" type="number" step="0.01" min="0.01" value={inlineEditForm.officialDistance} onChange={handleInlineChange} style={{ width: '80px' }} />
+                          : `${Number(race.officialDistance).toFixed(2)} km`}
+                      </td>
+                      <td>
+                        {isEditing
+                          ? <input className="inline-input" name="actualDistance" type="number" step="0.01" min="0.01" value={inlineEditForm.actualDistance} onChange={handleInlineChange} style={{ width: '80px' }} />
+                          : `${Number(race.actualDistance).toFixed(2)} km`}
+                      </td>
+                      <td>
+                        {isEditing
+                          ? <input className="inline-input" name="officialResult" placeholder="HH:MM:SS" value={inlineEditForm.officialResult} onChange={handleInlineChange} style={{ width: '100px' }} />
+                          : race.officialResult}
+                      </td>
+                      <td>
+                        {isEditing ? (
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button type="button" className="save-btn" onClick={saveInlineEdit}>Save</button>
+                            <button type="button" className="secondary" onClick={cancelInlineEdit}>✕</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button type="button" className="secondary" onClick={() => startInlineEdit(race)}>Edit</button>
+                            <button type="button" className="delete-btn" onClick={() => handleDelete(race.id)}>Delete</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <Suspense fallback={<section className="panel"><p className="empty">Loading advanced statistics…</p></section>}>

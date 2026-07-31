@@ -244,6 +244,46 @@ th {
   margin-bottom: 1rem;
 }
 
+.race-records-table {
+  min-width: 700px;
+}
+
+.race-records-table td {
+  vertical-align: middle;
+}
+
+.race-records-table tr.editing-row {
+  background: #f0f6ff;
+}
+
+.inline-input {
+  border-radius: 8px;
+  border: 1px solid #93bfff;
+  padding: 0.4rem 0.6rem;
+  width: 100%;
+  font-size: 0.95rem;
+  background: white;
+}
+
+.inline-input:focus {
+  outline: 2px solid #3d8bff;
+  outline-offset: 1px;
+}
+
+.save-btn {
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 999px;
+  padding: 0.5rem 0.85rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+}
+
+.save-btn:hover {
+  background: #a7f3d0;
+}
+
 .race-list {
   display: grid;
   gap: 0.75rem;
