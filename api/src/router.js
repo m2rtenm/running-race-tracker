@@ -57,7 +57,7 @@ export class Router {
         const match = this._matchRoute(route, path, method);
         if (match) {
           const params = match.params || {};
-          return await this._callHandler(route.handler, { ...request, params }, event);
+          return await this._callHandler(match.handler, { ...request, params }, event);
         }
       } else if (route.method === method && this._pathMatch(route.path, path)) {
         const params = this._extractParams(route.path, path);
