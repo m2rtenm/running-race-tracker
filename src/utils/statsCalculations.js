@@ -54,18 +54,15 @@ export const calculatePRs = (races) => {
   const prs = {};
 
   races.forEach((race) => {
-    const bucket = getDistanceBucket(race.distance);
-    const duration = calculateDurationMinutes(
-      race.hours || 0,
-      race.minutes || 0,
-      race.seconds || 0
-    );
-    const pace = calculatePace(duration, race.distance);
+    const dist = race.officialDistance || race.distance || 0;
+    const bucket = getDistanceBucket(dist);
+    const durationMinutes = (race.officialResultSeconds || 0) / 60;
+    const pace = calculatePace(durationMinutes, dist);
 
     if (!prs[bucket]) {
-      prs[bucket] = { distance: bucket, pace, time: duration, date: race.date, raceName: race.name };
+      prs[bucket] = { distance: bucket, pace, time: durationMinutes, date: race.date, raceName: race.competitionName || race.name };
     } else if (pace < prs[bucket].pace) {
-      prs[bucket] = { distance: bucket, pace, time: duration, date: race.date, raceName: race.name };
+      prs[bucket] = { distance: bucket, pace, time: durationMinutes, date: race.date, raceName: race.competitionName || race.name };
     }
   });
 
@@ -85,13 +82,10 @@ export const calculatePaceByDistance = (races) => {
   const byDistance = {};
 
   races.forEach((race) => {
-    const bucket = getDistanceBucket(race.distance);
-    const duration = calculateDurationMinutes(
-      race.hours || 0,
-      race.minutes || 0,
-      race.seconds || 0
-    );
-    const pace = calculatePace(duration, race.distance);
+    const dist = race.officialDistance || race.distance || 0;
+    const bucket = getDistanceBucket(dist);
+    const durationMinutes = (race.officialResultSeconds || 0) / 60;
+    const pace = calculatePace(durationMinutes, dist);
 
     if (!byDistance[bucket]) {
       byDistance[bucket] = { paces: [], distance: bucket };
@@ -123,12 +117,9 @@ export const calculateYearlyStats = (races) => {
 
   races.forEach((race) => {
     const year = new Date(race.date).getFullYear();
-    const duration = calculateDurationMinutes(
-      race.hours || 0,
-      race.minutes || 0,
-      race.seconds || 0
-    );
-    const pace = calculatePace(duration, race.distance);
+    const dist = race.officialDistance || race.distance || 0;
+    const durationMinutes = (race.officialResultSeconds || 0) / 60;
+    const pace = calculatePace(durationMinutes, dist);
 
     if (!byYear[year]) {
       byYear[year] = {
@@ -138,7 +129,7 @@ export const calculateYearlyStats = (races) => {
       };
     }
     byYear[year].totalRaces += 1;
-    byYear[year].totalDistance += race.distance;
+    byYear[year].totalDistance += dist;
     byYear[year].paces.push(pace);
   });
 
@@ -154,6 +145,7 @@ export const calculateYearlyStats = (races) => {
     .map((item) => ({
       ...item,
       avgFormattedPace: formatPace(item.avgPace),
+      bestFormattedPace: formatPace(item.minPace),
     }))
     .sort((a, b) => b.year - a.year);
 };
@@ -233,13 +225,10 @@ export const calculateByCompetition = (races) => {
   const byCompetition = {};
 
   races.forEach((race) => {
-    const comp = race.competition || 'Uncategorized';
-    const duration = calculateDurationMinutes(
-      race.hours || 0,
-      race.minutes || 0,
-      race.seconds || 0
-    );
-    const pace = calculatePace(duration, race.distance);
+    const comp = race.competitionName || race.competition || 'Uncategorized';
+    const dist = race.officialDistance || race.distance || 0;
+    const durationMinutes = (race.officialResultSeconds || 0) / 60;
+    const pace = calculatePace(durationMinutes, dist);
 
     if (!byCompetition[comp]) {
       byCompetition[comp] = {
@@ -249,7 +238,7 @@ export const calculateByCompetition = (races) => {
       };
     }
     byCompetition[comp].totalRaces += 1;
-    byCompetition[comp].totalDistance += race.distance;
+    byCompetition[comp].totalDistance += dist;
     byCompetition[comp].paces.push(pace);
   });
 
@@ -286,13 +275,10 @@ export const calculateSummary = (races) => {
   let lastRaceDate = null;
 
   races.forEach((race) => {
-    totalDistance += race.distance;
-    const duration = calculateDurationMinutes(
-      race.hours || 0,
-      race.minutes || 0,
-      race.seconds || 0
-    );
-    const pace = calculatePace(duration, race.distance);
+    const dist = race.officialDistance || race.distance || 0;
+    totalDistance += dist;
+    const durationMinutes = (race.officialResultSeconds || 0) / 60;
+    const pace = calculatePace(durationMinutes, dist);
     paces.push(pace);
 
     const raceDate = new Date(race.date);

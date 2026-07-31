@@ -14,13 +14,14 @@ export default function PaceChart({ races }) {
   const data = [...races]
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .map((race) => {
-      const duration = (race.hours || 0) * 60 + (race.minutes || 0) + (race.seconds || 0) / 60;
-      const pace = duration / race.distance;
+      const dist = race.officialDistance || race.distance || 0;
+      const durationMinutes = (race.officialResultSeconds || 0) / 60;
+      const pace = dist > 0 ? durationMinutes / dist : 0;
       return {
         date: new Date(race.date).toLocaleDateString('et-EE', { month: 'short', day: 'numeric' }),
         pace: parseFloat(pace.toFixed(2)),
-        raceName: race.name,
-        distance: race.distance,
+        raceName: race.competitionName || race.name,
+        distance: dist,
       };
     });
 

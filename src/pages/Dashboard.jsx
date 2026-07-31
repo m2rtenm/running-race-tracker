@@ -154,22 +154,32 @@ function Dashboard({ onLogout }) {
     for (const race of sortedRaces) {
       const key = race.competitionName.toLowerCase();
       if (!grouped.has(key)) {
-        grouped.set(key, { competitionName: race.competitionName, count: 0, totalTime: 0, bestTime: Infinity, bestYear: null });
+        grouped.set(key, { competitionName: race.competitionName, count: 0, totalTime: 0, bestTime: Infinity, bestYear: null, distances: [] });
       }
       const bucket = grouped.get(key);
       bucket.count += 1;
       bucket.totalTime += race.officialResultSeconds;
+      bucket.distances.push(Number(race.officialDistance));
       if (race.officialResultSeconds < bucket.bestTime) {
         bucket.bestTime = race.officialResultSeconds;
         bucket.bestYear = new Date(race.date).getFullYear();
       }
     }
 
-    return [...grouped.values()].map((values) => ({
-      ...values,
-      average: values.count ? Math.round(values.totalTime / values.count) : 0,
-      best: values.bestTime === Infinity ? null : values.bestTime,
-    })).sort((a, b) => a.competitionName.localeCompare(b.competitionName));
+    return [...grouped.values()].map((values) => {
+      // Pick most common official distance for this competition
+      const distFreq = {};
+      values.distances.forEach((d) => { distFreq[d] = (distFreq[d] || 0) + 1; });
+      const officialDistance = Number(Object.entries(distFreq).sort((a, b) => b[1] - a[1])[0][0]);
+      return {
+        competitionName: values.competitionName,
+        count: values.count,
+        officialDistance,
+        average: values.count ? Math.round(values.totalTime / values.count) : 0,
+        best: values.bestTime === Infinity ? null : values.bestTime,
+        bestYear: values.bestYear,
+      };
+    }).sort((a, b) => a.competitionName.localeCompare(b.competitionName));
   }, [sortedRaces]);
 
   function handleChange(event) {
@@ -404,6 +414,8 @@ function Dashboard({ onLogout }) {
             <thead>
               <tr>
                 <th>Competition</th>
+                <th>Distance</th>
+                <th>Races</th>
                 <th>Best</th>
                 <th>Average</th>
               </tr>
@@ -412,6 +424,8 @@ function Dashboard({ onLogout }) {
               {competitionStats.map((item) => (
                 <tr key={item.competitionName}>
                   <td>{item.competitionName}</td>
+                  <td>{item.officialDistance} km</td>
+                  <td>{item.count}</td>
                   <td>{item.best ? `${formatSeconds(item.best)} (${item.bestYear})` : '—'}</td>
                   <td>{item.average ? formatSeconds(item.average) : '—'}</td>
                 </tr>
