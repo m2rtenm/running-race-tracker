@@ -309,8 +309,7 @@ function Dashboard({ onLogout }) {
         </div>
         <div className="user-menu">
           <div className="user-info">
-            <p className="user-name">{user?.username}</p>
-            <p className="user-status">Authenticated</p>
+            <p className="user-name">{user?.email || user?.username}</p>
           </div>
           <button onClick={onLogout} className="logout-button">Sign Out</button>
         </div>
