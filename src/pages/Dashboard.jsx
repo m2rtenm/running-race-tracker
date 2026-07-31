@@ -152,22 +152,24 @@ function Dashboard({ onLogout }) {
   const competitionStats = useMemo(() => {
     const grouped = new Map();
     for (const race of sortedRaces) {
-      const year = new Date(race.date).getFullYear();
-      const key = `${race.competitionName.toLowerCase()}::${year}`;
+      const key = race.competitionName.toLowerCase();
       if (!grouped.has(key)) {
-        grouped.set(key, { competitionName: race.competitionName, year, count: 0, totalTime: 0, bestTime: Infinity });
+        grouped.set(key, { competitionName: race.competitionName, count: 0, totalTime: 0, bestTime: Infinity, bestYear: null });
       }
       const bucket = grouped.get(key);
       bucket.count += 1;
       bucket.totalTime += race.officialResultSeconds;
-      bucket.bestTime = Math.min(bucket.bestTime, race.officialResultSeconds);
+      if (race.officialResultSeconds < bucket.bestTime) {
+        bucket.bestTime = race.officialResultSeconds;
+        bucket.bestYear = new Date(race.date).getFullYear();
+      }
     }
 
     return [...grouped.values()].map((values) => ({
       ...values,
       average: values.count ? Math.round(values.totalTime / values.count) : 0,
       best: values.bestTime === Infinity ? null : values.bestTime,
-    })).sort((a, b) => a.competitionName.localeCompare(b.competitionName) || b.year - a.year);
+    })).sort((a, b) => a.competitionName.localeCompare(b.competitionName));
   }, [sortedRaces]);
 
   function handleChange(event) {
@@ -397,24 +399,20 @@ function Dashboard({ onLogout }) {
         </div>
 
         <div className="table-card full-width">
-          <h3>Competition comparison by year</h3>
+          <h3>Competition comparison</h3>
           <table>
             <thead>
               <tr>
                 <th>Competition</th>
-                <th>Year</th>
-                <th>Races</th>
                 <th>Best</th>
                 <th>Average</th>
               </tr>
             </thead>
             <tbody>
               {competitionStats.map((item) => (
-                <tr key={`${item.competitionName}-${item.year}`}>
+                <tr key={item.competitionName}>
                   <td>{item.competitionName}</td>
-                  <td>{item.year}</td>
-                  <td>{item.count}</td>
-                  <td>{item.best ? formatSeconds(item.best) : '—'}</td>
+                  <td>{item.best ? `${formatSeconds(item.best)} (${item.bestYear})` : '—'}</td>
                   <td>{item.average ? formatSeconds(item.average) : '—'}</td>
                 </tr>
               ))}
