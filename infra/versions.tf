@@ -7,4 +7,12 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  backend "s3" {
+    bucket  = "marten-tfstate"
+    key     = "running/terraform.tfstate"
+    region  = "eu-north-1"
+    profile = "sec"
+    encrypt = true
+  }
 }

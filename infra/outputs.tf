@@ -30,6 +30,11 @@ output "cognito_user_pool_client_id" {
   value = aws_cognito_user_pool_client.main.id
 }
 
+output "cognito_domain" {
+  description = "Cognito Hosted UI hostname (no https://) — used as VITE_COGNITO_DOMAIN."
+  value       = "${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com"
+}
+
 output "cognito_authority" {
   description = "OIDC issuer/authority URL for the Cognito User Pool."
   value       = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main.id}"

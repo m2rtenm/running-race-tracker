@@ -1,0 +1,153 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Validate required role configuration
+        env:
+          AWS_STATE_ROLE_ARN: ${{ secrets.AWS_STATE_ROLE_ARN }}
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -z "$AWS_STATE_ROLE_ARN" ]; then
+            echo "Missing secret: AWS_STATE_ROLE_ARN"
+            exit 1
+          fi
+          if [ -z "$AWS_DEPLOY_ROLE_ARN" ]; then
+            echo "Missing secret: AWS_DEPLOY_ROLE_ARN"
+            exit 1
+          fi
+
+      - name: Validate role ARN formats and target accounts
+        env:
+          AWS_STATE_ROLE_ARN: ${{ secrets.AWS_STATE_ROLE_ARN }}
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          STATE_ACCOUNT_ID=$(echo "$AWS_STATE_ROLE_ARN" | sed -E 's#^arn:aws:iam::([0-9]{12}):role/.+#\1#')
+          DEPLOY_ACCOUNT_ID=$(echo "$AWS_DEPLOY_ROLE_ARN" | sed -E 's#^arn:aws:iam::([0-9]{12}):role/.+#\1#')
+
+          if [ "$STATE_ACCOUNT_ID" = "$AWS_STATE_ROLE_ARN" ] || [ -z "$STATE_ACCOUNT_ID" ]; then
+            echo "AWS_STATE_ROLE_ARN is not a valid IAM role ARN"
+            exit 1
+          fi
+          if [ "$DEPLOY_ACCOUNT_ID" = "$AWS_DEPLOY_ROLE_ARN" ] || [ -z "$DEPLOY_ACCOUNT_ID" ]; then
+            echo "AWS_DEPLOY_ROLE_ARN is not a valid IAM role ARN"
+            exit 1
+          fi
+
+          if [ "$STATE_ACCOUNT_ID" != "311141538914" ]; then
+            echo "AWS_STATE_ROLE_ARN must target sec account 311141538914, got ${STATE_ACCOUNT_ID}"
+            exit 1
+          fi
+          if [ "$DEPLOY_ACCOUNT_ID" != "565393049153" ]; then
+            echo "AWS_DEPLOY_ROLE_ARN must target prod account 565393049153, got ${DEPLOY_ACCOUNT_ID}"
+            exit 1
+          fi
+
+          echo "Role ARNs validated for sec/prod accounts."
+
+      - name: Configure AWS credentials for Terraform backend
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_STATE_ROLE_ARN }}
+          role-session-name: gha-terraform-backend
+          aws-region: eu-north-1
+          audience: sts.amazonaws.com
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+          terraform_wrapper: false
+
+      - name: Initialize Terraform
+        working-directory: infra
+        run: terraform init -input=false
+
+      - name: Read Terraform outputs
+        working-directory: infra
+        id: tf_outputs
+        run: |
+          BUCKET=$(terraform output -raw bucket_name)
+          DISTRIBUTION_ID=$(terraform output -raw cloudfront_distribution_id)
+          API_URL=$(terraform output -raw api_gateway_url)
+          COGNITO_POOL_ID=$(terraform output -raw cognito_user_pool_id)
+          COGNITO_CLIENT_ID=$(terraform output -raw cognito_user_pool_client_id)
+          COGNITO_DOMAIN=$(terraform output -raw cognito_domain)
+          {
+            echo "BUCKET=${BUCKET}"
+            echo "DISTRIBUTION_ID=${DISTRIBUTION_ID}"
+            echo "API_URL=${API_URL}"
+            echo "COGNITO_POOL_ID=${COGNITO_POOL_ID}"
+            echo "COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}"
+            echo "COGNITO_DOMAIN=${COGNITO_DOMAIN}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials for deployment
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gha-deploy
+          aws-region: eu-north-1
+          audience: sts.amazonaws.com
+
+      - name: Install dependencies
+        run: npm ci --loglevel=error
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ steps.tf_outputs.outputs.API_URL }}
+          VITE_AWS_REGION: eu-north-1
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.tf_outputs.outputs.COGNITO_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ steps.tf_outputs.outputs.COGNITO_CLIENT_ID }}
+          VITE_COGNITO_DOMAIN: ${{ steps.tf_outputs.outputs.COGNITO_DOMAIN }}
+          VITE_COGNITO_REDIRECT_URI: https://running.mandla.tech/callback
+
+      - name: Deploy to S3 (hashed assets — long cache)
+        env:
+          BUCKET: ${{ steps.tf_outputs.outputs.BUCKET }}
+        run: |
+          aws s3 sync dist/ "s3://${BUCKET}" \
+            --delete \
+            --exclude "index.html" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Deploy to S3 (index.html — no cache)
+        env:
+          BUCKET: ${{ steps.tf_outputs.outputs.BUCKET }}
+        run: |
+          aws s3 cp dist/index.html "s3://${BUCKET}/index.html" \
+            --cache-control "no-cache,no-store,must-revalidate" \
+            --content-type "text/html"
+
+      - name: Invalidate CloudFront cache
+        env:
+          DISTRIBUTION_ID: ${{ steps.tf_outputs.outputs.DISTRIBUTION_ID }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${DISTRIBUTION_ID}" \
+            --paths "/*"
+
+      - name: Reminder for infrastructure changes
+        run: |
+          echo "Note: changes to infra/ are not auto-applied by this pipeline."
+          echo "Run terraform plan/apply manually when infrastructure changes are needed."
