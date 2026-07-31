@@ -312,7 +312,7 @@ function Dashboard({ onLogout }) {
           </label>
           <label>
             Official distance (km)
-            <input name="officialDistance" type="number" step="0.1" min="0.1" value={form.officialDistance} onChange={handleChange} required />
+            <input name="officialDistance" type="number" step="0.01" min="0.01" value={form.officialDistance} onChange={handleChange} required />
           </label>
           <label>
             Official result
@@ -320,7 +320,7 @@ function Dashboard({ onLogout }) {
           </label>
           <label>
             Actual distance (km)
-            <input name="actualDistance" type="number" step="0.1" min="0.1" value={form.actualDistance} onChange={handleChange} required />
+            <input name="actualDistance" type="number" step="0.01" min="0.01" value={form.actualDistance} onChange={handleChange} required />
           </label>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <button type="submit">{editingRaceId ? 'Update race' : 'Save race'}</button>
