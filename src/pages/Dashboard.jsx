@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/StatCard';
 import PerformanceChart from '../components/PerformanceChart';
@@ -65,6 +65,7 @@ function Dashboard({ onLogout }) {
   const [editingRaceId, setEditingRaceId] = useState(null);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const formRef = useRef(null);
 
   const loadRaces = useCallback(async () => {
     setIsLoading(true);
@@ -184,6 +185,10 @@ function Dashboard({ onLogout }) {
       actualDistance: String(race.actualDistance ?? ''),
     });
     setStatus(`Editing ${race.competitionName}.`);
+    window.requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      formRef.current?.querySelector('input[name="competitionName"]')?.focus();
+    });
   }
 
   function cancelEdit() {
@@ -296,7 +301,7 @@ function Dashboard({ onLogout }) {
           <h2>Add a race result</h2>
           <p>Capture each run so your dashboard can tell the story of your progress.</p>
         </div>
-        <form className="race-form" onSubmit={handleSubmit}>
+        <form ref={formRef} className="race-form" onSubmit={handleSubmit}>
           <label>
             Competition name
             <input name="competitionName" value={form.competitionName} onChange={handleChange} required />
@@ -324,6 +329,11 @@ function Dashboard({ onLogout }) {
             ) : null}
           </div>
         </form>
+        {editingRaceId ? (
+          <p className="status" style={{ marginTop: '8px' }}>
+            Editing an existing race — change the fields above and press Update.
+          </p>
+        ) : null}
         {status ? <p className="status">{status}</p> : null}
         {isLoading ? <p className="status">Syncing with the backend…</p> : null}
       </section>
