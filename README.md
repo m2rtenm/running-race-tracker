@@ -46,6 +46,12 @@ npm run dev
 
 ## Infrastructure deployment (Terraform)
 
+Terraform is organized into multiple files under `infra/` (auth, data, API, compute, CDN/storage, outputs) instead of a single large `main.tf`.
+
+Default custom domain setup is configured for:
+- `running.mandla.tech`
+- ACM lookup in `us-east-1` for `*.mandla.tech`
+
 1. Configure AWS credentials/profile.
 2. Deploy infrastructure:
 
@@ -53,6 +59,15 @@ npm run dev
 cd infra
 terraform init
 terraform apply
+```
+
+If your wildcard cert is already in ACM (`us-east-1`), you can usually keep defaults. If needed, override:
+
+```bash
+export TF_VAR_cloudfront_aliases='["running.mandla.tech"]'
+export TF_VAR_acm_certificate_domain="*.mandla.tech"
+# Optional explicit ARN override (skips lookup):
+export TF_VAR_certificate_arn="arn:aws:acm:us-east-1:...:certificate/..."
 ```
 
 Key outputs:
@@ -85,6 +100,8 @@ The deploy script:
 - uploads `index.html` with no-cache headers
 - invalidates CloudFront (`/*`)
 
+After apply, point DNS for `running.mandla.tech` to the CloudFront distribution domain (ALIAS/ANAME or CNAME depending on your DNS provider).
+
 ## Strava configuration
 
 Set Terraform variables for Strava:
@@ -94,6 +111,16 @@ Set Terraform variables for Strava:
 - `strava_redirect_uri` (for example `https://your-domain/strava/callback`)
 
 Then run `terraform apply` again to update Lambda environment variables.
+
+## Optional: Google sign-in via Cognito
+
+1. In Google Cloud Console, create OAuth credentials (Web application).
+2. Add Cognito redirect URI:
+   `https://<your-cognito-domain>.auth.<region>.amazoncognito.com/oauth2/idpresponse`
+3. Set:
+   - `TF_VAR_google_oauth_client_id`
+   - `TF_VAR_google_oauth_client_secret`
+4. Run `terraform apply`.
 
 ## Notes
 

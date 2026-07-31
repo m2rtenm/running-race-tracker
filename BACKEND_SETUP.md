@@ -8,6 +8,15 @@ This phase sets up the complete cloud infrastructure using Terraform with:
 - **DynamoDB** - NoSQL database with user-specific tables
 - **Cognito** - User authentication and JWT tokens
 
+Terraform code is split by concern in `infra/`:
+- `versions.tf`, `providers.tf`, `variables.tf`
+- `acm.tf`, `cognito.tf`, `dynamodb.tf`, `iam.tf`, `lambda.tf`, `apigateway.tf`
+- `storage.tf`, `cloudfront.tf`, `outputs.tf`
+
+Default domain setup:
+- CloudFront alias: `running.mandla.tech`
+- ACM lookup (in `us-east-1` provider alias): `*.mandla.tech`
+
 ### Prerequisites
 
 1. **AWS Account** with credentials configured
@@ -97,6 +106,48 @@ nano .env.backend
 source .env.backend
 ```
 
+### Step A: Store secrets in SSM Parameter Store (required before `terraform apply`)
+
+Secrets are stored in AWS SSM (not Terraform variables) so they never appear in state files or shell history.
+
+#### 1. Store your allowed email address
+
+```bash
+aws ssm put-parameter --region eu-north-1 --type SecureString \
+  --name /running-race-tracker/allowed_emails \
+  --value "your@gmail.com"
+# Multiple emails: comma-separated e.g. "a@gmail.com,b@gmail.com"
+```
+
+#### 2. Create Google OAuth credentials
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services → Credentials**.
+2. Configure the OAuth consent screen (External, just for yourself).
+3. Create **OAuth 2.0 Client ID** → type: **Web application**.
+4. For now, add a placeholder redirect URI — you'll update this after Terraform creates the Cognito domain.
+5. Copy the Client ID and Client Secret, then store them in SSM:
+
+```bash
+aws ssm put-parameter --region eu-north-1 --type SecureString \
+  --name /running-race-tracker/google_client_id \
+  --value "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+
+aws ssm put-parameter --region eu-north-1 --type SecureString \
+  --name /running-race-tracker/google_client_secret \
+  --value "GOCSPX-YOUR_SECRET"
+```
+
+#### 3. After `terraform apply`, update the Google OAuth redirect URI
+
+Terraform outputs the exact URI to register:
+
+```bash
+terraform output cognito_google_redirect_uri
+# → https://running-race-tracker-auth.auth.eu-north-1.amazoncognito.com/oauth2/idpresponse
+```
+
+Add that URL as an **Authorized redirect URI** in your Google OAuth client (Google Cloud Console → Credentials → edit your Web client).
+
 #### 3. Initialize Terraform
 
 ```bash
@@ -111,6 +162,14 @@ terraform plan \
   -var="aws_region=$AWS_REGION" \
   -var="aws_profile=$AWS_PROFILE" \
   -var="bucket_name=$TF_VAR_bucket_name"
+```
+
+Optional domain overrides:
+
+```bash
+terraform plan \
+  -var='cloudfront_aliases=["running.mandla.tech"]' \
+  -var='acm_certificate_domain=*.mandla.tech'
 ```
 
 #### 5. Apply Infrastructure
@@ -128,9 +187,14 @@ After successful deployment, Terraform will output:
 - `api_gateway_url` - API endpoint
 - `cognito_user_pool_id` - User pool for authentication
 - `cognito_user_pool_client_id` - OAuth client ID
+- `cognito_hosted_ui_domain` - Cognito Hosted UI base URL
+- `cognito_google_redirect_uri` - **Register this in Google Cloud Console**
+- `cognito_authority` - OIDC issuer URL for JWT verification
 - `cloudfront_domain_name` - Frontend CDN domain
 
 **Save these values** - you'll need them for frontend configuration.
+
+> **After apply:** copy `cognito_google_redirect_uri` from the output and add it as an **Authorized redirect URI** in your Google OAuth client in Google Cloud Console.
 
 ### Lambda Function Deployment
 
@@ -251,4 +315,3 @@ aws logs tail /aws/api-gateway/running-race-tracker --follow
 4. → Phase 4: Build enhanced statistics and visualizations
 5. → Phase 5: Strava integration
 6. → Phase 6: Production deployment and optimization
-
