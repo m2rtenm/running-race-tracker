@@ -48,7 +48,10 @@ function formatSeconds(totalSeconds) {
 
 function formatDate(dateValue) {
   const date = new Date(`${dateValue}T00:00:00`);
-  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}.${m}.${y}`;
 }
 
 function normalizeRace(race) {

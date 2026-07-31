@@ -297,6 +297,6 @@ export const calculateSummary = (races) => {
     avgFormattedPace: formatPace(avgPace),
     bestPace,
     bestFormattedPace: formatPace(bestPace),
-    lastRaceDate: lastRaceDate?.toLocaleDateString(),
+    lastRaceDate: lastRaceDate ? (() => { const d = lastRaceDate; return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`; })() : null,
   };
 };

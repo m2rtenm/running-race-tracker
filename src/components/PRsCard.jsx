@@ -49,7 +49,7 @@ export default function PRsCard({ races }) {
                   {pr.formattedPace}
                 </td>
                 <td style={{ padding: '8px', textAlign: 'right', color: '#666' }}>
-                  {new Date(pr.date).toLocaleDateString('et-EE')}
+                  {(() => { const d = new Date(`${pr.date}T00:00:00`); return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`; })()}
                 </td>
               </tr>
             ))}
