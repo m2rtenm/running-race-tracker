@@ -159,7 +159,12 @@ export async function completeHostedUiSignIn(callbackUrl = window.location.href)
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || 'Hosted UI token exchange failed');
+    try {
+      const parsed = JSON.parse(text);
+      throw new Error(parsed.error_description || parsed.error || 'Hosted UI token exchange failed');
+    } catch {
+      throw new Error(text || 'Hosted UI token exchange failed');
+    }
   }
 
   const tokenResult = await response.json();

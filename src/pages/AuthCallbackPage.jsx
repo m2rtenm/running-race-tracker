@@ -1,10 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 function AuthCallbackPage({ onComplete }) {
   const { completeGoogleCallback, error } = useAuth();
+  const startedRef = useRef(false);
 
   useEffect(() => {
+    if (startedRef.current) {
+      return undefined;
+    }
+    startedRef.current = true;
+
     let cancelled = false;
 
     async function complete() {
