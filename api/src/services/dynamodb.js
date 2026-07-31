@@ -147,3 +147,84 @@ export async function getStravaImport(userId, importId) {
     throw error;
   }
 }
+
+// ============================================================================
+// STRAVA TOKEN STORAGE (stored in strava_imports with fixed importId)
+// ============================================================================
+
+const STRAVA_TOKEN_KEY = 'strava_oauth_tokens';
+
+export async function saveStravaTokens(userId, tokens) {
+  try {
+    const item = {
+      userId,
+      importId: STRAVA_TOKEN_KEY,
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      expiresAt: tokens.expires_at, // Unix timestamp
+      athleteId: tokens.athlete?.id,
+      athleteName: tokens.athlete ? `${tokens.athlete.firstname} ${tokens.athlete.lastname}` : null,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await docClient.send(
+      new PutCommand({
+        TableName: STRAVA_TABLE,
+        Item: item,
+      })
+    );
+
+    return item;
+  } catch (error) {
+    console.error('Error saving strava tokens:', error);
+    throw error;
+  }
+}
+
+export async function getStravaTokens(userId) {
+  try {
+    const result = await docClient.send(
+      new GetCommand({
+        TableName: STRAVA_TABLE,
+        Key: { userId, importId: STRAVA_TOKEN_KEY },
+      })
+    );
+    return result.Item || null;
+  } catch (error) {
+    console.error('Error getting strava tokens:', error);
+    throw error;
+  }
+}
+
+export async function deleteStravaTokens(userId) {
+  try {
+    await docClient.send(
+      new DeleteCommand({
+        TableName: STRAVA_TABLE,
+        Key: { userId, importId: STRAVA_TOKEN_KEY },
+      })
+    );
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting strava tokens:', error);
+    throw error;
+  }
+}
+
+export async function getStravaImportedActivityIds(userId) {
+  try {
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: RACES_TABLE,
+        KeyConditionExpression: 'userId = :userId',
+        FilterExpression: 'attribute_exists(stravaId)',
+        ExpressionAttributeValues: { ':userId': userId },
+        ProjectionExpression: 'stravaId',
+      })
+    );
+    return (result.Items || []).map((item) => item.stravaId);
+  } catch (error) {
+    console.error('Error getting imported Strava activity IDs:', error);
+    throw error;
+  }
+}

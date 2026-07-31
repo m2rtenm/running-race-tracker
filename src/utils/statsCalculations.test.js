@@ -6,7 +6,7 @@ import {
   calculateByCompetition,
   calculateSummary,
   formatPace,
-} from './statsCalculations';
+} from './statsCalculations.js';
 
 // Mock race data for testing
 const mockRaces = [

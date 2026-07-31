@@ -89,3 +89,30 @@ export async function getPersonalRecords() {
 export async function getConsistencyStats() {
   return request('/stats/consistency');
 }
+
+// ============================================================================
+// STRAVA API
+// ============================================================================
+
+export async function stravaGetAuthUrl() {
+  return request('/strava/auth');
+}
+
+export async function stravaGetStatus() {
+  return request('/strava/status');
+}
+
+export async function stravaExchangeCode(code) {
+  return request('/strava/exchange', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
+export async function stravaSync() {
+  return request('/strava/sync', { method: 'POST' });
+}
+
+export async function stravaDisconnect() {
+  return request('/strava/disconnect', { method: 'DELETE' });
+}

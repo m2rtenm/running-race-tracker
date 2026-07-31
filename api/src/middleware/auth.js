@@ -1,6 +1,29 @@
-import jwt from 'jsonwebtoken';
+import { CognitoJwtVerifier } from 'aws-jwt-verify';
 
-export async function auth(request, event) {
+let verifier = null;
+
+function getVerifier() {
+  if (verifier) {
+    return verifier;
+  }
+
+  const userPoolId = process.env.COGNITO_USER_POOL_ID;
+  const clientId = process.env.COGNITO_CLIENT_ID;
+
+  if (!userPoolId || !clientId) {
+    throw new Error('Missing Cognito configuration for JWT verification');
+  }
+
+  verifier = CognitoJwtVerifier.create({
+    userPoolId,
+    tokenUse: 'access',
+    clientId,
+  });
+
+  return verifier;
+}
+
+export async function auth(request) {
   // Skip auth for health check
   if (request.path === '/health') {
     return;
@@ -17,17 +40,16 @@ export async function auth(request, event) {
   }
 
   try {
-    // Verify token structure (without full JWT validation - you'd need Cognito keys)
-    const decoded = jwt.decode(token, { complete: true });
-    
-    if (!decoded || !decoded.payload.sub) {
-      throw new Error('Invalid token');
+    const jwtPayload = await getVerifier().verify(token);
+
+    if (!jwtPayload.sub) {
+      throw new Error('Token missing subject claim');
     }
 
     // Extract userId from Cognito sub claim
-    request.userId = decoded.payload.sub;
+    request.userId = jwtPayload.sub;
   } catch (error) {
-    console.warn('Token validation warning:', error.message);
+    console.warn('Token validation failed:', error.message);
     throw {
       statusCode: 401,
       body: { error: 'Invalid token' },

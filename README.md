@@ -1,37 +1,53 @@
 # Running Race Tracker
 
-A React + Vite dashboard for recording running competition results and reviewing performance trends over time.
+A private running analytics app inspired by Sportos, with AWS-backed storage, Cognito authentication, advanced statistics, and Strava import.
 
-## What it does
-- Add race entries with competition name, date, official distance, official result, and actual distance
-- Store results in the browser using local storage
-- Show a richer dashboard with:
-  - summary cards
-  - a performance-over-time chart
-  - statistics grouped by distance, year, and competition
-- Delete individual entries or clear all stored data
+## Features
 
-## Run locally
-Install dependencies:
+- Cognito sign-up/sign-in and protected dashboard
+- Race CRUD persisted in DynamoDB (user-scoped)
+- Advanced analytics (PRs, pace trends, yearly summaries, consistency, competition breakdowns)
+- Strava OAuth connection + run sync with duplicate protection
+- Serverless API (API Gateway + Lambda)
+- Frontend hosting on S3 + CloudFront
+
+## Project structure
+
+- `src/` - React frontend (Vite)
+- `api/` - Lambda API routes and services
+- `infra/` - Terraform infrastructure
+- `scripts/deploy.sh` - Production frontend deployment helper
+
+## Local development
+
+1. Install frontend dependencies:
 
 ```bash
 npm install
 ```
 
-Start the app:
+2. Install backend dependencies:
+
+```bash
+cd api && npm install && cd ..
+```
+
+3. Configure frontend env:
+
+```bash
+cp .env.frontend.example .env.local
+```
+
+4. Run app:
 
 ```bash
 npm run dev
 ```
 
-Then visit http://localhost:3000/.
+## Infrastructure deployment (Terraform)
 
-## AWS deployment setup
-The project now includes a simple Terraform-based S3 website scaffold in [infra/website.tf](infra/website.tf) and a deployment helper in [scripts/deploy.sh](scripts/deploy.sh).
-
-### Deploy to S3
-1. Install Terraform.
-2. Initialize the infrastructure:
+1. Configure AWS credentials/profile.
+2. Deploy infrastructure:
 
 ```bash
 cd infra
@@ -39,19 +55,47 @@ terraform init
 terraform apply
 ```
 
-3. Deploy the frontend bundle:
+Key outputs:
+
+- `api_gateway_url`
+- `cognito_user_pool_id`
+- `cognito_user_pool_client_id`
+- `bucket_name`
+- `cloudfront_domain_name`
+- `cloudfront_distribution_id`
+
+## Frontend production deployment
+
+After `terraform apply`, deploy the frontend bundle:
 
 ```bash
-cd ..
 bash scripts/deploy.sh
 ```
 
-This uses a public S3 website bucket for a simple and inexpensive hosting path.
+Optional overrides:
 
-## Future improvements
-If you later want syncing across devices and shared access, the next step would be:
-- AWS Lambda + API Gateway for a small API
-- DynamoDB for storing race records
-- Cognito for authentication
+```bash
+bash scripts/deploy.sh <bucket_name> <cloudfront_distribution_id>
+```
 
-That would move the app from a personal local-first tracker to a multi-user cloud version.
+The deploy script:
+
+- builds with Vite
+- uploads hashed assets with long cache headers
+- uploads `index.html` with no-cache headers
+- invalidates CloudFront (`/*`)
+
+## Strava configuration
+
+Set Terraform variables for Strava:
+
+- `strava_client_id`
+- `strava_client_secret`
+- `strava_redirect_uri` (for example `https://your-domain/strava/callback`)
+
+Then run `terraform apply` again to update Lambda environment variables.
+
+## Notes
+
+- This app is designed for private/personal use.
+- CloudFront is configured for SPA routing, so deep links (including `/strava/callback`) resolve to `index.html`.

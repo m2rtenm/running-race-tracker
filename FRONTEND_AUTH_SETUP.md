@@ -55,7 +55,7 @@ cp .env.frontend.example .env.local
 
 Update with your Cognito values from Terraform outputs:
 ```env
-VITE_API_BASE_URL=https://your-api-gateway-url/api
+VITE_API_BASE_URL=https://your-api-gateway-url
 VITE_AWS_REGION=eu-north-1
 VITE_COGNITO_USER_POOL_ID=eu-north-1_XXXXXXXXX
 VITE_COGNITO_CLIENT_ID=1a2b3c4d5e6f7g8h9i0j1k2l3m

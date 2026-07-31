@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/StatCard';
 import PerformanceChart from '../components/PerformanceChart';
-import StatsOverview from '../components/StatsOverview';
+import StravaConnect from '../components/StravaConnect';
 import { createRace, deleteRaceById, listRaces, updateRace } from '../api';
 import '../App.css';
+
+const StatsOverview = lazy(() => import('../components/StatsOverview'));
 
 const emptyForm = {
   competitionName: '',
@@ -56,25 +58,25 @@ function Dashboard({ onLogout }) {
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    async function loadRaces() {
-      setIsLoading(true);
-      try {
-        const remoteRaces = await listRaces();
-        if (Array.isArray(remoteRaces) && remoteRaces.length) {
-          setRaces(remoteRaces);
-          setStatus('Loaded races from the cloud backend.');
-        }
-      } catch (error) {
-        console.error('Error loading races:', error);
-        setStatus('Error loading races. Please try again.');
-      } finally {
-        setIsLoading(false);
+  const loadRaces = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const remoteRaces = await listRaces();
+      if (Array.isArray(remoteRaces) && remoteRaces.length) {
+        setRaces(remoteRaces);
+        setStatus('Loaded races from the cloud backend.');
       }
+    } catch (error) {
+      console.error('Error loading races:', error);
+      setStatus('Error loading races. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-
-    loadRaces();
   }, []);
+
+  useEffect(() => {
+    loadRaces();
+  }, [loadRaces]);
 
   const sortedRaces = useMemo(() => [...races].sort((a, b) => b.date.localeCompare(a.date)), [races]);
 
@@ -233,6 +235,11 @@ function Dashboard({ onLogout }) {
         </div>
       </header>
 
+      <section className="panel">
+        <h2 style={{ marginBottom: '12px' }}>Import from Strava</h2>
+        <StravaConnect onSyncComplete={loadRaces} />
+      </section>
+
       <section className="panel panel-grid">
         <div className="panel-heading">
           <h2>Add a race result</h2>
@@ -373,7 +380,9 @@ function Dashboard({ onLogout }) {
         </div>
       </section>
 
-      <StatsOverview races={sortedRaces} />
+      <Suspense fallback={<section className="panel"><p className="empty">Loading advanced statistics…</p></section>}>
+        <StatsOverview races={sortedRaces} />
+      </Suspense>
     </main>
   );
 }

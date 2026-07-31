@@ -39,6 +39,25 @@ variable "bucket_name" {
   default = "running-race-tracker-app"
 }
 
+variable "strava_client_id" {
+  type        = string
+  description = "Strava API application client ID"
+  default     = ""
+}
+
+variable "strava_client_secret" {
+  type        = string
+  description = "Strava API application client secret"
+  sensitive   = true
+  default     = ""
+}
+
+variable "strava_redirect_uri" {
+  type        = string
+  description = "Strava OAuth redirect URI (frontend /strava/callback URL)"
+  default     = "http://localhost:5173/strava/callback"
+}
+
 # ============================================================================
 # COGNITO USER POOL FOR AUTHENTICATION
 # ============================================================================
@@ -58,30 +77,30 @@ resource "aws_cognito_user_pool" "main" {
   mfa_configuration        = "OFF"
 
   schema {
-    name                     = "email"
-    attribute_data_type      = "String"
-    required                 = true
-    mutable                  = true
+    name                = "email"
+    attribute_data_type = "String"
+    required            = true
+    mutable             = true
   }
 
   schema {
-    name                     = "name"
-    attribute_data_type      = "String"
-    mutable                  = true
+    name                = "name"
+    attribute_data_type = "String"
+    mutable             = true
   }
 }
 
 resource "aws_cognito_user_pool_client" "main" {
-  name                = "running-race-tracker-web"
-  user_pool_id        = aws_cognito_user_pool.main.id
-  generate_secret     = false
+  name            = "running-race-tracker-web"
+  user_pool_id    = aws_cognito_user_pool.main.id
+  generate_secret = false
   explicit_auth_flows = [
     "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
     "ALLOW_USER_SRP_AUTH"
   ]
 
-  allowed_oauth_flows = ["code"]
+  allowed_oauth_flows  = ["code"]
   allowed_oauth_scopes = ["openid", "email", "profile"]
   callback_urls = [
     "http://localhost:3000/callback",
@@ -99,14 +118,12 @@ resource "aws_cognito_user_pool_client" "main" {
 # ============================================================================
 
 resource "aws_dynamodb_table" "races" {
-  name           = "running-race-tracker-races"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "userId"
-  range_key      = "raceId"
-  stream_specification {
-    stream_view_type = "NEW_AND_OLD_IMAGES"
-    stream_enabled   = true
-  }
+  name             = "running-race-tracker-races"
+  billing_mode     = "PAY_PER_REQUEST"
+  hash_key         = "userId"
+  range_key        = "raceId"
+  stream_enabled   = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
 
   attribute {
     name = "userId"
@@ -186,9 +203,9 @@ resource "aws_iam_role" "lambda_exec" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 }
@@ -240,23 +257,26 @@ resource "aws_iam_role_policy" "dynamodb_races" {
 # ============================================================================
 
 resource "aws_lambda_function" "api" {
-  function_name = "running-race-tracker-api"
-  role          = aws_iam_role.lambda_exec.arn
-  handler       = "src/handler.handler"
-  runtime       = "nodejs22.x"
-  filename      = data.archive_file.lambda.output_path
+  function_name    = "running-race-tracker-api"
+  role             = aws_iam_role.lambda_exec.arn
+  handler          = "src/handler.handler"
+  runtime          = "nodejs22.x"
+  filename         = data.archive_file.lambda.output_path
   source_code_hash = data.archive_file.lambda.output_base64sha256
-  timeout       = 30
-  memory_size   = 512
+  timeout          = 30
+  memory_size      = 512
 
   environment {
     variables = {
-      RACES_TABLE_NAME         = aws_dynamodb_table.races.name
+      RACES_TABLE_NAME          = aws_dynamodb_table.races.name
       STRAVA_IMPORTS_TABLE_NAME = aws_dynamodb_table.strava_imports.name
-      AWS_REGION              = var.aws_region
-      COGNITO_REGION          = var.aws_region
-      COGNITO_USER_POOL_ID    = aws_cognito_user_pool.main.id
-      COGNITO_CLIENT_ID       = aws_cognito_user_pool_client.main.id
+      AWS_REGION                = var.aws_region
+      COGNITO_REGION            = var.aws_region
+      COGNITO_USER_POOL_ID      = aws_cognito_user_pool.main.id
+      COGNITO_CLIENT_ID         = aws_cognito_user_pool_client.main.id
+      STRAVA_CLIENT_ID          = var.strava_client_id
+      STRAVA_CLIENT_SECRET      = var.strava_client_secret
+      STRAVA_REDIRECT_URI       = var.strava_redirect_uri
     }
   }
 }
@@ -310,15 +330,15 @@ resource "aws_apigatewayv2_stage" "default" {
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_logs.arn
     format = jsonencode({
-      requestId      = "$context.requestId"
-      httpMethod     = "$context.httpMethod"
-      resourcePath   = "$context.resourcePath"
-      status         = "$context.status"
-      protocol       = "$context.protocol"
-      requestTime    = "$context.requestTime"
-      responseLength = "$context.responseLength"
+      requestId          = "$context.requestId"
+      httpMethod         = "$context.httpMethod"
+      resourcePath       = "$context.resourcePath"
+      status             = "$context.status"
+      protocol           = "$context.protocol"
+      requestTime        = "$context.requestTime"
+      responseLength     = "$context.responseLength"
       integrationLatency = "$context.integration.latency"
-      error          = "$context.error.message"
+      error              = "$context.error.message"
     })
   }
 }
@@ -417,9 +437,23 @@ resource "aws_cloudfront_distribution" "website" {
     }
   }
 
+  custom_error_response {
+    error_code            = 403
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 0
+  }
+
+  custom_error_response {
+    error_code            = 404
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 0
+  }
+
   viewer_certificate {
-    acm_certificate_arn      = var.certificate_arn != "" ? var.certificate_arn : null
-    ssl_support_method       = var.certificate_arn != "" ? "sni-only" : null
+    acm_certificate_arn            = var.certificate_arn != "" ? var.certificate_arn : null
+    ssl_support_method             = var.certificate_arn != "" ? "sni-only" : null
     cloudfront_default_certificate = var.certificate_arn == ""
   }
 
@@ -438,6 +472,10 @@ resource "aws_cloudfront_distribution" "website" {
 
 output "cloudfront_domain_name" {
   value = aws_cloudfront_distribution.website.domain_name
+}
+
+output "cloudfront_distribution_id" {
+  value = aws_cloudfront_distribution.website.id
 }
 
 output "cloudfront_alias" {
