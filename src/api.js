@@ -113,6 +113,17 @@ export async function stravaSync() {
   return request('/strava/sync', { method: 'POST' });
 }
 
+export async function stravaGetActivities() {
+  return request('/strava/activities');
+}
+
+export async function stravaImportSelected(activityIds) {
+  return request('/strava/import-selected', {
+    method: 'POST',
+    body: JSON.stringify({ activityIds }),
+  });
+}
+
 export async function stravaDisconnect() {
   return request('/strava/disconnect', { method: 'DELETE' });
 }

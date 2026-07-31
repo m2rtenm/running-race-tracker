@@ -68,12 +68,12 @@ router.put(`${basePath}/:raceId`, async (request) => {
   }
 
   const updates = {
-    competitionName: request.body.competitionName || race.competitionName,
-    date: request.body.date || race.date,
-    officialDistance: request.body.officialDistance || race.officialDistance,
-    officialResult: request.body.officialResult || race.officialResult,
-    officialResultSeconds: request.body.officialResultSeconds || race.officialResultSeconds,
-    actualDistance: request.body.actualDistance || race.actualDistance,
+    competitionName: request.body.competitionName ?? race.competitionName,
+    date: request.body.date ?? race.date,
+    officialDistance: request.body.officialDistance ?? race.officialDistance,
+    officialResult: request.body.officialResult ?? race.officialResult,
+    officialResultSeconds: request.body.officialResultSeconds ?? race.officialResultSeconds,
+    actualDistance: request.body.actualDistance ?? race.actualDistance,
   };
 
   const updated = await updateRace(request.userId, request.params.raceId, updates);

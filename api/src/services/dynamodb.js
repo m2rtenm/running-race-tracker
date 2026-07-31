@@ -69,16 +69,30 @@ export async function createRace(userId, race) {
 
 export async function updateRace(userId, raceId, updates) {
   try {
+    const entries = Object.entries(updates).filter(([, value]) => value !== undefined && value !== null);
+    if (entries.length === 0) {
+      return await getRaceById(userId, raceId);
+    }
+
+    const expressionAttributeNames = {};
+    const expressionAttributeValues = {
+      ':now': new Date().toISOString(),
+    };
+    const updateExpressions = entries.map(([key, value], index) => {
+      const nameKey = `#field${index}`;
+      const valueKey = `:value${index}`;
+      expressionAttributeNames[nameKey] = key;
+      expressionAttributeValues[valueKey] = value;
+      return `${nameKey} = ${valueKey}`;
+    });
+
     const result = await docClient.send(
       new UpdateCommand({
         TableName: RACES_TABLE,
         Key: { userId, raceId },
-        UpdateExpression: 'SET #updates, updatedAt = :now',
-        ExpressionAttributeNames: { '#updates': Object.keys(updates)[0] },
-        ExpressionAttributeValues: {
-          ':now': new Date().toISOString(),
-          ...Object.fromEntries(Object.entries(updates).map(([k, v], i) => [`:v${i}`, v])),
-        },
+        UpdateExpression: `SET ${updateExpressions.join(', ')}, updatedAt = :now`,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues,
         ReturnValues: 'ALL_NEW',
       })
     );

@@ -51,10 +51,18 @@ function formatDate(dateValue) {
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+function normalizeRace(race) {
+  return {
+    ...race,
+    id: race.id || race.raceId,
+  };
+}
+
 function Dashboard({ onLogout }) {
   const { user } = useAuth();
   const [races, setRaces] = useState([]);
   const [form, setForm] = useState(emptyForm);
+  const [editingRaceId, setEditingRaceId] = useState(null);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -62,10 +70,9 @@ function Dashboard({ onLogout }) {
     setIsLoading(true);
     try {
       const remoteRaces = await listRaces();
-      if (Array.isArray(remoteRaces) && remoteRaces.length) {
-        setRaces(remoteRaces);
-        setStatus('Loaded races from the cloud backend.');
-      }
+      const normalized = Array.isArray(remoteRaces) ? remoteRaces.map(normalizeRace) : [];
+      setRaces(normalized);
+      setStatus('Loaded races from the cloud backend.');
     } catch (error) {
       console.error('Error loading races:', error);
       setStatus('Error loading races. Please try again.');
@@ -167,7 +174,25 @@ function Dashboard({ onLogout }) {
     setForm((current) => ({ ...current, [name]: value }));
   }
 
-  function handleSubmit(event) {
+  function startEdit(race) {
+    setEditingRaceId(race.id);
+    setForm({
+      competitionName: race.competitionName || '',
+      date: race.date || '',
+      officialDistance: String(race.officialDistance ?? ''),
+      officialResult: race.officialResult || '',
+      actualDistance: String(race.actualDistance ?? ''),
+    });
+    setStatus(`Editing ${race.competitionName}.`);
+  }
+
+  function cancelEdit() {
+    setEditingRaceId(null);
+    setForm(emptyForm);
+    setStatus('Edit cancelled.');
+  }
+
+  async function handleSubmit(event) {
     event.preventDefault();
     const officialResultSeconds = parseResultToSeconds(form.officialResult);
 
@@ -186,23 +211,49 @@ function Dashboard({ onLogout }) {
       actualDistance: Number(form.actualDistance),
     };
 
-    const nextRaces = [race, ...races];
-    setRaces(nextRaces);
+    if (editingRaceId) {
+      const nextRace = { ...race, id: editingRaceId };
+      setRaces((current) => current.map((item) => (item.id === editingRaceId ? nextRace : item)));
+      setForm(emptyForm);
+      setEditingRaceId(null);
+
+      try {
+        const updated = await updateRace(editingRaceId, {
+          competitionName: nextRace.competitionName,
+          date: nextRace.date,
+          officialDistance: nextRace.officialDistance,
+          officialResult: nextRace.officialResult,
+          officialResultSeconds: nextRace.officialResultSeconds,
+          actualDistance: nextRace.actualDistance,
+        });
+        setRaces((current) => current.map((item) => (item.id === editingRaceId ? normalizeRace(updated) : item)));
+        setStatus(`Updated ${nextRace.competitionName} on ${formatDate(nextRace.date)}.`);
+      } catch (error) {
+        console.error(error);
+        setStatus('Updated locally, but the cloud backend was not available.');
+      }
+      return;
+    }
+
+    setRaces((current) => [race, ...current]);
     setForm(emptyForm);
 
-    createRace(race)
-      .then(() => {
-        setStatus(`Saved ${race.competitionName} on ${formatDate(race.date)}.`);
-      })
-      .catch((error) => {
-        console.error(error);
-        setStatus('Saved locally, but the cloud backend was not available.');
-      });
+    try {
+      const saved = await createRace(race);
+      setRaces((current) => [normalizeRace(saved), ...current.filter((item) => item.id !== race.id)]);
+      setStatus(`Saved ${race.competitionName} on ${formatDate(race.date)}.`);
+    } catch (error) {
+      console.error(error);
+      setStatus('Saved locally, but the cloud backend was not available.');
+    }
   }
 
   function handleDelete(id) {
     const nextRaces = races.filter((race) => race.id !== id);
     setRaces(nextRaces);
+    if (editingRaceId === id) {
+      cancelEdit();
+    }
 
     deleteRaceById(id)
       .catch((error) => {
@@ -266,7 +317,12 @@ function Dashboard({ onLogout }) {
             Actual distance (km)
             <input name="actualDistance" type="number" step="0.1" min="0.1" value={form.actualDistance} onChange={handleChange} required />
           </label>
-          <button type="submit">Save race</button>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button type="submit">{editingRaceId ? 'Update race' : 'Save race'}</button>
+            {editingRaceId ? (
+              <button type="button" className="secondary" onClick={cancelEdit}>Cancel</button>
+            ) : null}
+          </div>
         </form>
         {status ? <p className="status">{status}</p> : null}
         {isLoading ? <p className="status">Syncing with the backend…</p> : null}
@@ -373,7 +429,10 @@ function Dashboard({ onLogout }) {
                   <div className="race-meta">{formatDate(race.date)} · {Number(race.officialDistance).toFixed(1)} km · result {race.officialResult}</div>
                   <div className="race-meta">Actual distance: {Number(race.actualDistance).toFixed(1)} km</div>
                 </div>
-                <button type="button" className="delete-btn" onClick={() => handleDelete(race.id)}>Delete</button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button type="button" className="secondary" onClick={() => startEdit(race)}>Edit</button>
+                  <button type="button" className="delete-btn" onClick={() => handleDelete(race.id)}>Delete</button>
+                </div>
               </article>
             ))
           )}

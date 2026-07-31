@@ -73,6 +73,57 @@ async function refreshStravaTokenIfNeeded(tokens) {
   return await res.json();
 }
 
+async function fetchRecentStravaRuns(request) {
+  let tokens = await getStravaTokens(request.userId);
+
+  if (!tokens) {
+    throw { statusCode: 400, body: { error: 'Strava not connected. Please connect first.' } };
+  }
+
+  const freshTokenData = await refreshStravaTokenIfNeeded(tokens);
+  if (freshTokenData !== tokens) {
+    await saveStravaTokens(request.userId, {
+      access_token: freshTokenData.access_token,
+      refresh_token: freshTokenData.refresh_token,
+      expires_at: freshTokenData.expires_at,
+    });
+    tokens = { ...tokens, accessToken: freshTokenData.access_token };
+  }
+
+  const importedIds = await getStravaImportedActivityIds(request.userId);
+  const importedSet = new Set(importedIds);
+
+  let page = 1;
+  const allRuns = [];
+
+  while (true) {
+    const params = new URLSearchParams({
+      per_page: '100',
+      page: String(page),
+    });
+
+    const activitiesRes = await fetch(`${STRAVA_ACTIVITIES_URL}?${params}`, {
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+    });
+
+    if (!activitiesRes.ok) {
+      const text = await activitiesRes.text();
+      throw { statusCode: 502, body: { error: `Strava API error: ${text}` } };
+    }
+
+    const activities = await activitiesRes.json();
+    if (activities.length === 0) break;
+
+    const runs = activities.filter((a) => a.type === 'Run' || a.sport_type === 'Run');
+    allRuns.push(...runs);
+
+    if (activities.length < 100) break;
+    page += 1;
+  }
+
+  return { tokens, runs: allRuns, importedSet };
+}
+
 // ============================================================================
 // ROUTES
 // ============================================================================
@@ -259,6 +310,82 @@ router.post(`${basePath}/sync`, async (request) => {
       errors: errors.length,
       errorDetails: errors,
       message: `Imported ${imported.length} new runs, skipped ${allRuns.length - newRuns.length} already imported.`,
+    },
+  };
+});
+
+// GET /strava/activities - Preview recent runs for selective import
+router.get(`${basePath}/activities`, async (request) => {
+  if (!request.userId) {
+    throw { statusCode: 401, body: { error: 'Unauthorized' } };
+  }
+
+  const { runs, importedSet } = await fetchRecentStravaRuns(request);
+
+  return {
+    statusCode: 200,
+    body: {
+      runs: runs.slice(0, 100).map((activity) => ({
+        id: String(activity.id),
+        name: activity.name,
+        type: activity.type || activity.sport_type,
+        startDateLocal: activity.start_date_local,
+        distanceKm: Number((activity.distance / 1000).toFixed(2)),
+        elapsedTime: activity.elapsed_time,
+        movingTime: activity.moving_time,
+        imported: importedSet.has(String(activity.id)),
+      })),
+    },
+  };
+});
+
+// POST /strava/import-selected - Import only the runs you choose
+router.post(`${basePath}/import-selected`, async (request) => {
+  if (!request.userId) {
+    throw { statusCode: 401, body: { error: 'Unauthorized' } };
+  }
+
+  const activityIds = Array.isArray(request.body?.activityIds) ? request.body.activityIds.map(String) : [];
+  if (activityIds.length === 0) {
+    throw { statusCode: 400, body: { error: 'No Strava activities selected' } };
+  }
+
+  const selectedSet = new Set(activityIds);
+  const { runs, importedSet } = await fetchRecentStravaRuns(request);
+  const selectedRuns = runs.filter((activity) => selectedSet.has(String(activity.id)));
+
+  if (selectedRuns.length === 0) {
+    throw { statusCode: 404, body: { error: 'Selected runs were not found in your recent Strava activities' } };
+  }
+
+  const imported = [];
+  const skipped = [];
+  const errors = [];
+
+  for (const activity of selectedRuns) {
+    const activityId = String(activity.id);
+    if (importedSet.has(activityId)) {
+      skipped.push(activityId);
+      continue;
+    }
+
+    try {
+      const raceData = mapActivityToRace(activity);
+      const race = await createRace(request.userId, raceData);
+      imported.push(race);
+    } catch (err) {
+      errors.push({ activityId, name: activity.name, error: err.message });
+    }
+  }
+
+  return {
+    statusCode: 200,
+    body: {
+      imported: imported.length,
+      skipped: skipped.length,
+      errors: errors.length,
+      errorDetails: errors,
+      message: `Imported ${imported.length} selected runs, skipped ${skipped.length} already imported.`,
     },
   };
 });
