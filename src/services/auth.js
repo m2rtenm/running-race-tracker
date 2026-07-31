@@ -4,12 +4,14 @@ export const COGNITO_CONFIG = {
   userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID,
   clientId: import.meta.env.VITE_COGNITO_CLIENT_ID,
   domain: import.meta.env.VITE_COGNITO_DOMAIN,
-  redirectUri: import.meta.env.VITE_COGNITO_REDIRECT_URI || `${window.location.origin}/callback`,
+  redirectUri: import.meta.env.VITE_COGNITO_REDIRECT_URI || `${window.location.origin}/`,
 };
 
 const TOKEN_KEY = 'running-race-tracker-token';
 const REFRESH_TOKEN_KEY = 'running-race-tracker-refresh-token';
 const USER_KEY = 'running-race-tracker-user';
+const OAUTH_STATE_KEY = 'running-race-tracker-oauth-state';
+const OAUTH_VERIFIER_KEY = 'running-race-tracker-oauth-verifier';
 
 // ============================================================================
 // TOKEN MANAGEMENT
@@ -17,7 +19,11 @@ const USER_KEY = 'running-race-tracker-user';
 
 export function saveTokens(accessToken, refreshToken, user) {
   localStorage.setItem(TOKEN_KEY, accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  if (refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  } else {
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+  }
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
@@ -55,9 +61,133 @@ export function isTokenExpired(token) {
   }
 }
 
+function base64UrlEncode(input) {
+  const base64 = typeof input === 'string' ? btoa(input) : btoa(String.fromCharCode(...new Uint8Array(input)));
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function generateRandomString(length) {
+  const bytes = new Uint8Array(length);
+  window.crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes.buffer).slice(0, length);
+}
+
+async function generateCodeChallenge(verifier) {
+  const digest = await window.crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(verifier)
+  );
+  return base64UrlEncode(digest);
+}
+
+function decodeJwtPayload(token) {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  return JSON.parse(atob(parts[1]));
+}
+
 // ============================================================================
 // COGNITO AUTHENTICATION
 // ============================================================================
+
+export async function signInWithGoogle() {
+  if (!COGNITO_CONFIG.domain) {
+    throw new Error('VITE_COGNITO_DOMAIN is missing');
+  }
+  if (!COGNITO_CONFIG.clientId) {
+    throw new Error('VITE_COGNITO_CLIENT_ID is missing');
+  }
+
+  const state = generateRandomString(32);
+  const codeVerifier = generateRandomString(64);
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+  sessionStorage.setItem(OAUTH_STATE_KEY, state);
+  sessionStorage.setItem(OAUTH_VERIFIER_KEY, codeVerifier);
+
+  const params = new URLSearchParams({
+    identity_provider: 'Google',
+    response_type: 'code',
+    client_id: COGNITO_CONFIG.clientId,
+    redirect_uri: COGNITO_CONFIG.redirectUri,
+    scope: 'openid email profile',
+    state,
+    code_challenge_method: 'S256',
+    code_challenge: codeChallenge,
+  });
+
+  window.location.assign(`https://${COGNITO_CONFIG.domain}/oauth2/authorize?${params.toString()}`);
+}
+
+export async function completeHostedUiSignIn(callbackUrl = window.location.href) {
+  const url = new URL(callbackUrl);
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  const error = url.searchParams.get('error');
+  const errorDescription = url.searchParams.get('error_description');
+
+  if (error) {
+    throw new Error(errorDescription || error);
+  }
+  if (!code) {
+    throw new Error('Missing authorization code');
+  }
+
+  const expectedState = sessionStorage.getItem(OAUTH_STATE_KEY);
+  const codeVerifier = sessionStorage.getItem(OAUTH_VERIFIER_KEY);
+
+  if (!expectedState || state !== expectedState) {
+    throw new Error('Invalid OAuth state');
+  }
+  if (!codeVerifier) {
+    throw new Error('Missing OAuth code verifier');
+  }
+
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: COGNITO_CONFIG.clientId,
+    code,
+    redirect_uri: COGNITO_CONFIG.redirectUri,
+    code_verifier: codeVerifier,
+  });
+
+  const response = await fetch(`https://${COGNITO_CONFIG.domain}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Hosted UI token exchange failed');
+  }
+
+  const tokenResult = await response.json();
+  const accessToken = tokenResult.access_token;
+  const refreshToken = tokenResult.refresh_token;
+  const idToken = tokenResult.id_token;
+
+  if (!accessToken) {
+    throw new Error('Hosted UI did not return an access token');
+  }
+
+  const payload = idToken ? decodeJwtPayload(idToken) : decodeJwtPayload(accessToken);
+  if (!payload) {
+    throw new Error('Invalid token payload');
+  }
+
+  const user = {
+    username: payload['cognito:username'] || payload.email || payload.sub,
+    email: payload.email || '',
+    sub: payload.sub,
+  };
+
+  saveTokens(accessToken, refreshToken, user);
+  sessionStorage.removeItem(OAUTH_STATE_KEY);
+  sessionStorage.removeItem(OAUTH_VERIFIER_KEY);
+
+  return { user, accessToken, refreshToken };
+}
 
 export async function signUp(username, password, email) {
   try {

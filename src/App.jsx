@@ -5,10 +5,16 @@ import Dashboard from './pages/Dashboard';
 import './App.css';
 
 const StravaCallbackPage = lazy(() => import('./pages/StravaCallbackPage'));
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage'));
 
 // Detect if current URL is the Strava OAuth callback
 function isStravaCallback() {
   return window.location.pathname === '/strava/callback';
+}
+
+function isAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  return window.location.pathname === '/callback' || params.has('code');
 }
 
 function AppContent() {
@@ -37,6 +43,14 @@ function AppContent() {
   const handleLogin = () => {
     setShowDashboard(true);
   };
+
+  if (isAuthCallback()) {
+    return (
+      <Suspense fallback={null}>
+        <AuthCallbackPage onComplete={handleLogin} />
+      </Suspense>
+    );
+  }
 
   if (!showDashboard) {
     return <LoginPage onNavigateToDashboard={handleLogin} />;

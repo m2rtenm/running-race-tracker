@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import '../styles/auth.css';
 
 function LoginPage({ onNavigateToDashboard }) {
-  const { login, register, isLoading, error: authError } = useAuth();
+  const { login, register, loginWithGoogle, isLoading, error: authError } = useAuth();
   const [mode, setMode] = useState('login'); // 'login' or 'register'
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -91,6 +91,17 @@ function LoginPage({ onNavigateToDashboard }) {
             <button type="submit" disabled={isLoading} className="auth-button">
               {isLoading ? 'Please wait...' : (mode === 'login' ? 'Sign In' : 'Create Account')}
             </button>
+
+            {mode === 'login' && (
+              <button
+                type="button"
+                disabled={isLoading}
+                className="auth-button"
+                onClick={() => loginWithGoogle()}
+              >
+                Continue with Google
+              </button>
+            )}
           </form>
 
           <div className="auth-footer">

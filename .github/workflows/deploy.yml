@@ -120,7 +120,7 @@ jobs:
           VITE_COGNITO_USER_POOL_ID: ${{ steps.tf_outputs.outputs.COGNITO_POOL_ID }}
           VITE_COGNITO_CLIENT_ID: ${{ steps.tf_outputs.outputs.COGNITO_CLIENT_ID }}
           VITE_COGNITO_DOMAIN: ${{ steps.tf_outputs.outputs.COGNITO_DOMAIN }}
-          VITE_COGNITO_REDIRECT_URI: https://running.mandla.tech/callback
+          VITE_COGNITO_REDIRECT_URI: https://running.mandla.tech/
 
       - name: Deploy to S3 (hashed assets — long cache)
         env:

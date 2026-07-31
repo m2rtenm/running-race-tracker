@@ -3,6 +3,8 @@ import {
   signIn,
   signUp,
   signOut,
+  signInWithGoogle,
+  completeHostedUiSignIn,
   getAccessToken,
   getStoredUser,
   isAuthenticated,
@@ -97,6 +99,27 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const loginWithGoogle = async () => {
+    setError(null);
+    await signInWithGoogle();
+  };
+
+  const completeGoogleCallback = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { user: oauthUser } = await completeHostedUiSignIn(window.location.href);
+      setUser(oauthUser);
+      return oauthUser;
+    } catch (err) {
+      const errorMessage = err.message || 'Google sign-in failed';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -107,6 +130,8 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
+        loginWithGoogle,
+        completeGoogleCallback,
       }}
     >
       {children}
