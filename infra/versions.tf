@@ -12,7 +12,6 @@ terraform {
     bucket  = "marten-tfstate"
     key     = "running/terraform.tfstate"
     region  = "eu-north-1"
-    profile = "sec"
     encrypt = true
   }
 }
