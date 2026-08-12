@@ -52,8 +52,54 @@ Default custom domain setup is configured for:
 - `running.mandla.tech`
 - ACM lookup in `us-east-1` for `*.mandla.tech`
 
-1. Configure AWS credentials/profile.
-2. Deploy infrastructure:
+### Local Terraform workflow
+
+This project uses **two different AWS access contexts**:
+
+- **state access**: only for the Terraform backend bucket (`marten-tfstate`)
+- **deploy access**: for reading/planning/applying real AWS resources
+
+In GitHub Actions, those are split into two IAM roles. Locally, the simplest setup is to use:
+
+- one profile for the backend bucket, for example: `sec`
+- one profile for infrastructure resources, for example: `prod`
+
+1. Export the provider profile used for plan/apply:
+
+```bash
+export TF_VAR_aws_profile=prod
+```
+
+2. Initialize Terraform **backend** with the backend/state profile:
+
+```bash
+cd infra
+terraform init -reconfigure -backend-config="profile=sec"
+```
+
+3. Validate and review changes:
+
+```bash
+terraform fmt
+terraform validate
+terraform plan -out=tfplan
+```
+
+4. Apply reviewed changes:
+
+```bash
+terraform apply tfplan
+```
+
+If you do not use local AWS named profiles, you can also rely on exported AWS credentials or SSO-resolved environment variables. In that case:
+
+- leave `TF_VAR_aws_profile` unset
+- run `terraform init` with whichever credentials currently have backend access
+- run `terraform plan/apply` with whichever credentials currently have deploy access
+
+### Quick-start deploy
+
+If you already have the correct credentials active, deploy infrastructure with:
 
 ```bash
 cd infra
@@ -78,6 +124,15 @@ Key outputs:
 - `bucket_name`
 - `cloudfront_domain_name`
 - `cloudfront_distribution_id`
+
+### CI/CD role split
+
+The GitHub Actions pipeline uses this separation intentionally:
+
+- **AWS_STATE_ROLE_ARN** -> `terraform init` only
+- **AWS_DEPLOY_ROLE_ARN** -> `terraform plan`, `terraform apply`, and `terraform output`
+
+That keeps the state role limited to backend access and prevents it from needing broad infrastructure permissions.
 
 ## Frontend production deployment
 
