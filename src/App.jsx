@@ -12,7 +12,14 @@ function isStravaCallback() {
 }
 
 function isAuthCallback() {
-  return window.location.pathname === '/callback';
+  const params = new URLSearchParams(window.location.search);
+  const isExplicitCallbackPath = window.location.pathname === '/callback';
+  const isRootHostedUiCallback =
+    window.location.pathname === '/' &&
+    params.has('code') &&
+    params.has('state');
+
+  return isExplicitCallbackPath || isRootHostedUiCallback;
 }
 
 function AppContent() {
