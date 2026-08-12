@@ -13,9 +13,13 @@ function isStravaCallback() {
 
 function isAuthCallback() {
   const params = new URLSearchParams(window.location.search);
+  const hasPendingOAuthSession =
+    !!sessionStorage.getItem('running-race-tracker-oauth-state') &&
+    !!sessionStorage.getItem('running-race-tracker-oauth-verifier');
   const isExplicitCallbackPath = window.location.pathname === '/callback';
   const isRootHostedUiCallback =
     window.location.pathname === '/' &&
+    hasPendingOAuthSession &&
     params.has('code') &&
     params.has('state');
 
