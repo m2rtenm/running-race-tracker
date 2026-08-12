@@ -69,9 +69,14 @@ jobs:
         if: needs.changes.outputs.infra_changed == 'true'
         env:
           AWS_STATE_ROLE_ARN: ${{ secrets.AWS_STATE_ROLE_ARN }}
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
         run: |
           if [ -z "$AWS_STATE_ROLE_ARN" ]; then
             echo "Missing secret: AWS_STATE_ROLE_ARN"
+            exit 1
+          fi
+          if [ -z "$AWS_DEPLOY_ROLE_ARN" ]; then
+            echo "Missing secret: AWS_DEPLOY_ROLE_ARN"
             exit 1
           fi
 
@@ -100,6 +105,15 @@ jobs:
         if: needs.changes.outputs.infra_changed == 'true'
         working-directory: infra
         run: terraform init -input=false
+
+      - name: Configure AWS credentials for Terraform plan
+        if: needs.changes.outputs.infra_changed == 'true'
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gha-terraform-plan
+          aws-region: eu-north-1
+          audience: sts.amazonaws.com
 
       - name: Terraform validate
         if: needs.changes.outputs.infra_changed == 'true'
@@ -175,6 +189,14 @@ jobs:
         working-directory: infra
         run: terraform init -input=false
 
+      - name: Configure AWS credentials for Terraform apply
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gha-terraform-apply-resources
+          aws-region: eu-north-1
+          audience: sts.amazonaws.com
+
       - name: Terraform apply saved plan
         working-directory: infra
         run: terraform apply -input=false tfplan
@@ -239,7 +261,7 @@ jobs:
       - name: Configure AWS credentials for Terraform outputs
         uses: aws-actions/configure-aws-credentials@v5.1.0
         with:
-          role-to-assume: ${{ secrets.AWS_STATE_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           role-session-name: gha-terraform-outputs
           aws-region: eu-north-1
           audience: sts.amazonaws.com
