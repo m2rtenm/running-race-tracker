@@ -21,6 +21,8 @@ function AuthCallbackPage() {
         }
       } catch {
         if (!cancelled) {
+          sessionStorage.removeItem('running-race-tracker-oauth-state');
+          sessionStorage.removeItem('running-race-tracker-oauth-verifier');
           window.history.replaceState({}, document.title, '/');
         }
       }

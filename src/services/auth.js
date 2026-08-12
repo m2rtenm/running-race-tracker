@@ -44,6 +44,8 @@ export function clearTokens() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(OAUTH_STATE_KEY);
+  sessionStorage.removeItem(OAUTH_VERIFIER_KEY);
 }
 
 export function isTokenExpired(token) {
@@ -324,10 +326,22 @@ export async function refreshAccessToken() {
 }
 
 export async function signOut() {
+  const logoutUrl = COGNITO_CONFIG.domain && COGNITO_CONFIG.clientId
+    ? `https://${COGNITO_CONFIG.domain}/logout?${new URLSearchParams({
+        client_id: COGNITO_CONFIG.clientId,
+        logout_uri: COGNITO_CONFIG.redirectUri,
+      }).toString()}`
+    : null;
+
   try {
     const accessToken = getAccessToken();
     if (!accessToken) {
       clearTokens();
+      if (logoutUrl) {
+        window.location.assign(logoutUrl);
+        return;
+      }
+      window.location.replace('/');
       return;
     }
 
@@ -348,6 +362,11 @@ export async function signOut() {
     console.warn('Sign out error:', error);
   } finally {
     clearTokens();
+    if (logoutUrl) {
+      window.location.assign(logoutUrl);
+      return;
+    }
+    window.location.replace('/');
   }
 }
 
