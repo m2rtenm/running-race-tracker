@@ -201,6 +201,14 @@ jobs:
         working-directory: infra
         run: terraform apply -input=false tfplan
 
+      - name: Configure AWS credentials for Terraform outputs
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_STATE_ROLE_ARN }}
+          role-session-name: gha-terraform-outputs
+          aws-region: eu-north-1
+          audience: sts.amazonaws.com
+
       - name: Read Terraform outputs
         working-directory: infra
         id: tf_outputs
@@ -275,14 +283,6 @@ jobs:
       - name: Terraform init
         working-directory: infra
         run: terraform init -input=false
-
-      - name: Configure AWS credentials for Terraform outputs
-        uses: aws-actions/configure-aws-credentials@v5.1.0
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          role-session-name: gha-terraform-outputs
-          aws-region: eu-north-1
-          audience: sts.amazonaws.com
 
       - name: Read Terraform outputs
         working-directory: infra
