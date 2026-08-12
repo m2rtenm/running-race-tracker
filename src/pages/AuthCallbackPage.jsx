@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 function AuthCallbackPage() {
-  const { completeGoogleCallback, error } = useAuth();
+  const { completeGoogleCallback, error, isAuthenticated } = useAuth();
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -18,7 +18,6 @@ function AuthCallbackPage() {
         await completeGoogleCallback();
         if (!cancelled) {
           window.history.replaceState({}, document.title, '/');
-          window.location.replace('/');
         }
       } catch {
         if (!cancelled) {
@@ -32,6 +31,12 @@ function AuthCallbackPage() {
       cancelled = true;
     };
   }, [completeGoogleCallback]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      window.history.replaceState({}, document.title, '/');
+    }
+  }, [isAuthenticated]);
 
   return (
     <main className="auth-page">
