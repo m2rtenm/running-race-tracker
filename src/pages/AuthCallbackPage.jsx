@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-function AuthCallbackPage({ onComplete }) {
+function AuthCallbackPage() {
   const { completeGoogleCallback, error } = useAuth();
   const startedRef = useRef(false);
 
@@ -18,7 +18,7 @@ function AuthCallbackPage({ onComplete }) {
         await completeGoogleCallback();
         if (!cancelled) {
           window.history.replaceState({}, document.title, '/');
-          onComplete();
+          window.location.replace('/');
         }
       } catch {
         if (!cancelled) {
@@ -31,7 +31,7 @@ function AuthCallbackPage({ onComplete }) {
     return () => {
       cancelled = true;
     };
-  }, [completeGoogleCallback, onComplete]);
+  }, [completeGoogleCallback]);
 
   return (
     <main className="auth-page">

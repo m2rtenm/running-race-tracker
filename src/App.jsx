@@ -12,8 +12,7 @@ function isStravaCallback() {
 }
 
 function isAuthCallback() {
-  const params = new URLSearchParams(window.location.search);
-  return window.location.pathname === '/callback' || params.has('code');
+  return window.location.pathname === '/callback';
 }
 
 function AppContent() {
@@ -34,7 +33,7 @@ function AppContent() {
   if (isAuthCallback()) {
     return (
       <Suspense fallback={null}>
-        <AuthCallbackPage onComplete={() => {}} />
+        <AuthCallbackPage />
       </Suspense>
     );
   }
