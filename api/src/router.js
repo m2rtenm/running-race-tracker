@@ -33,7 +33,7 @@ export class Router {
     const path = event.rawPath || event.path || '';
 
     if (method === 'OPTIONS') {
-      return this._corsResponse(200, {});
+      return this._corsResponse(200, {}, event.headers?.origin || event.headers?.Origin || null);
     }
 
     // Create request object
@@ -44,6 +44,7 @@ export class Router {
       queryStringParameters: event.queryStringParameters || {},
       body: event.body ? JSON.parse(event.body) : {},
       userId: event.userId,
+      origin: event.headers?.origin || event.headers?.Origin || null,
     };
 
     // Apply middlewares
@@ -65,7 +66,7 @@ export class Router {
       }
     }
 
-    return this._corsResponse(404, { error: 'Not found' });
+    return this._corsResponse(404, { error: 'Not found' }, request.origin);
   }
 
   _matchRoute(router, path, method) {
@@ -110,21 +111,32 @@ export class Router {
   async _callHandler(handler, request, event) {
     try {
       const response = await handler(request);
-      return this._corsResponse(response.statusCode || 200, response.body || response);
+      return this._corsResponse(response.statusCode || 200, response.body || response, request.origin);
     } catch (error) {
       console.error('Handler error:', error);
-      return this._corsResponse(500, { error: error.message });
+      const statusCode = error?.statusCode || 500;
+      const body = error?.body || { error: error.message };
+      return this._corsResponse(statusCode, body, request.origin);
     }
   }
 
-  _corsResponse(statusCode, body) {
+  _corsResponse(statusCode, body, origin = null) {
+    const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    const allowOrigin = origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0] || "null";
+
     return {
       statusCode,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': allowOrigin,
+        'Vary': 'Origin',
         'Access-Control-Allow-Headers': 'Content-Type,Authorization',
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Access-Control-Allow-Credentials': 'true',
       },
       body: JSON.stringify(body),
     };

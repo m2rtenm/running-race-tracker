@@ -1,18 +1,54 @@
-name: Build and Deploy
+name: Verify, Plan, Apply and Deploy
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  deploy:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      infra_changed: ${{ steps.filter.outputs.infra }}
+      app_changed: ${{ steps.filter.outputs.app }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            infra:
+              - 'infra/**'
+            app:
+              - 'src/**'
+              - 'api/**'
+              - 'public/**'
+              - 'index.html'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'vite.config.js'
+              - 'scripts/**'
+              - '.github/workflows/**'
+
+  verify:
+    runs-on: ubuntu-latest
+    needs: changes
     permissions:
       id-token: write
       contents: read
-
+    outputs:
+      has_plan: ${{ steps.plan_meta.outputs.has_plan }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -21,6 +57,167 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --loglevel=error
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Validate required role configuration
+        if: needs.changes.outputs.infra_changed == 'true'
+        env:
+          AWS_STATE_ROLE_ARN: ${{ secrets.AWS_STATE_ROLE_ARN }}
+        run: |
+          if [ -z "$AWS_STATE_ROLE_ARN" ]; then
+            echo "Missing secret: AWS_STATE_ROLE_ARN"
+            exit 1
+          fi
+
+      - name: Configure AWS credentials for Terraform backend
+        if: needs.changes.outputs.infra_changed == 'true'
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_STATE_ROLE_ARN }}
+          role-session-name: gha-terraform-verify
+          aws-region: eu-north-1
+          audience: sts.amazonaws.com
+
+      - name: Set up Terraform
+        if: needs.changes.outputs.infra_changed == 'true'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+          terraform_wrapper: false
+
+      - name: Terraform fmt check
+        if: needs.changes.outputs.infra_changed == 'true'
+        working-directory: infra
+        run: terraform fmt -check
+
+      - name: Terraform init
+        if: needs.changes.outputs.infra_changed == 'true'
+        working-directory: infra
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        if: needs.changes.outputs.infra_changed == 'true'
+        working-directory: infra
+        run: terraform validate
+
+      - name: Terraform plan
+        if: needs.changes.outputs.infra_changed == 'true'
+        working-directory: infra
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Save plan metadata
+        id: plan_meta
+        run: |
+          if [ "${{ needs.changes.outputs.infra_changed }}" = "true" ]; then
+            echo "has_plan=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_plan=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Terraform plan artifact
+        if: needs.changes.outputs.infra_changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: |
+            infra/tfplan
+            infra/.terraform.lock.hcl
+          retention-days: 7
+
+  infra_apply:
+    runs-on: ubuntu-latest
+    needs: [changes, verify]
+    if: github.event_name != 'pull_request' && needs.verify.outputs.has_plan == 'true'
+    permissions:
+      id-token: write
+      contents: read
+    environment:
+      name: production
+    outputs:
+      bucket: ${{ steps.tf_outputs.outputs.BUCKET }}
+      distribution_id: ${{ steps.tf_outputs.outputs.DISTRIBUTION_ID }}
+      api_url: ${{ steps.tf_outputs.outputs.API_URL }}
+      cognito_pool_id: ${{ steps.tf_outputs.outputs.COGNITO_POOL_ID }}
+      cognito_client_id: ${{ steps.tf_outputs.outputs.COGNITO_CLIENT_ID }}
+      cognito_domain: ${{ steps.tf_outputs.outputs.COGNITO_DOMAIN }}
+      app_url: ${{ steps.tf_outputs.outputs.APP_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Download Terraform plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan
+          path: infra
+
+      - name: Configure AWS credentials for Terraform backend
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_STATE_ROLE_ARN }}
+          role-session-name: gha-terraform-apply
+          aws-region: eu-north-1
+          audience: sts.amazonaws.com
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: infra
+        run: terraform init -input=false
+
+      - name: Terraform apply saved plan
+        working-directory: infra
+        run: terraform apply -input=false tfplan
+
+      - name: Read Terraform outputs
+        working-directory: infra
+        id: tf_outputs
+        run: |
+          BUCKET=$(terraform output -raw bucket_name)
+          DISTRIBUTION_ID=$(terraform output -raw cloudfront_distribution_id)
+          API_URL=$(terraform output -raw api_gateway_url)
+          COGNITO_POOL_ID=$(terraform output -raw cognito_user_pool_id)
+          COGNITO_CLIENT_ID=$(terraform output -raw cognito_user_pool_client_id)
+          COGNITO_DOMAIN=$(terraform output -raw cognito_domain)
+          APP_URL=$(terraform output -raw cloudfront_aliases | tr -d '[]",' | awk '{print $1}')
+          {
+            echo "BUCKET=${BUCKET}"
+            echo "DISTRIBUTION_ID=${DISTRIBUTION_ID}"
+            echo "API_URL=${API_URL}"
+            echo "COGNITO_POOL_ID=${COGNITO_POOL_ID}"
+            echo "COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}"
+            echo "COGNITO_DOMAIN=${COGNITO_DOMAIN}"
+            echo "APP_URL=${APP_URL}"
+          } >> "$GITHUB_OUTPUT"
+
+  deploy_app:
+    runs-on: ubuntu-latest
+    needs: [changes, verify]
+    if: github.event_name != 'pull_request'
+    permissions:
+      id-token: write
+      contents: read
+    environment:
+      name: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
 
       - name: Validate required role configuration
         env:
@@ -36,39 +233,14 @@ jobs:
             exit 1
           fi
 
-      - name: Validate role ARN formats and target accounts
-        env:
-          AWS_STATE_ROLE_ARN: ${{ secrets.AWS_STATE_ROLE_ARN }}
-          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-        run: |
-          STATE_ACCOUNT_ID=$(echo "$AWS_STATE_ROLE_ARN" | sed -E 's#^arn:aws:iam::([0-9]{12}):role/.+#\1#')
-          DEPLOY_ACCOUNT_ID=$(echo "$AWS_DEPLOY_ROLE_ARN" | sed -E 's#^arn:aws:iam::([0-9]{12}):role/.+#\1#')
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
-          if [ "$STATE_ACCOUNT_ID" = "$AWS_STATE_ROLE_ARN" ] || [ -z "$STATE_ACCOUNT_ID" ]; then
-            echo "AWS_STATE_ROLE_ARN is not a valid IAM role ARN"
-            exit 1
-          fi
-          if [ "$DEPLOY_ACCOUNT_ID" = "$AWS_DEPLOY_ROLE_ARN" ] || [ -z "$DEPLOY_ACCOUNT_ID" ]; then
-            echo "AWS_DEPLOY_ROLE_ARN is not a valid IAM role ARN"
-            exit 1
-          fi
-
-          if [ "$STATE_ACCOUNT_ID" != "311141538914" ]; then
-            echo "AWS_STATE_ROLE_ARN must target sec account 311141538914, got ${STATE_ACCOUNT_ID}"
-            exit 1
-          fi
-          if [ "$DEPLOY_ACCOUNT_ID" != "565393049153" ]; then
-            echo "AWS_DEPLOY_ROLE_ARN must target prod account 565393049153, got ${DEPLOY_ACCOUNT_ID}"
-            exit 1
-          fi
-
-          echo "Role ARNs validated for sec/prod accounts."
-
-      - name: Configure AWS credentials for Terraform backend
+      - name: Configure AWS credentials for Terraform outputs
         uses: aws-actions/configure-aws-credentials@v5.1.0
         with:
           role-to-assume: ${{ secrets.AWS_STATE_ROLE_ARN }}
-          role-session-name: gha-terraform-backend
+          role-session-name: gha-terraform-outputs
           aws-region: eu-north-1
           audience: sts.amazonaws.com
 
@@ -78,7 +250,7 @@ jobs:
           terraform_version: 1.5.0
           terraform_wrapper: false
 
-      - name: Initialize Terraform
+      - name: Terraform init
         working-directory: infra
         run: terraform init -input=false
 
@@ -92,6 +264,7 @@ jobs:
           COGNITO_POOL_ID=$(terraform output -raw cognito_user_pool_id)
           COGNITO_CLIENT_ID=$(terraform output -raw cognito_user_pool_client_id)
           COGNITO_DOMAIN=$(terraform output -raw cognito_domain)
+          PRIMARY_ALIAS=$(terraform output -json cloudfront_aliases | jq -r '.[0]')
           {
             echo "BUCKET=${BUCKET}"
             echo "DISTRIBUTION_ID=${DISTRIBUTION_ID}"
@@ -99,13 +272,14 @@ jobs:
             echo "COGNITO_POOL_ID=${COGNITO_POOL_ID}"
             echo "COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}"
             echo "COGNITO_DOMAIN=${COGNITO_DOMAIN}"
+            echo "PRIMARY_ALIAS=${PRIMARY_ALIAS}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials for deployment
         uses: aws-actions/configure-aws-credentials@v5.1.0
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          role-session-name: gha-deploy
+          role-session-name: gha-app-deploy
           aws-region: eu-north-1
           audience: sts.amazonaws.com
 
@@ -120,7 +294,7 @@ jobs:
           VITE_COGNITO_USER_POOL_ID: ${{ steps.tf_outputs.outputs.COGNITO_POOL_ID }}
           VITE_COGNITO_CLIENT_ID: ${{ steps.tf_outputs.outputs.COGNITO_CLIENT_ID }}
           VITE_COGNITO_DOMAIN: ${{ steps.tf_outputs.outputs.COGNITO_DOMAIN }}
-          VITE_COGNITO_REDIRECT_URI: https://running.mandla.tech/
+          VITE_COGNITO_REDIRECT_URI: https://${{ steps.tf_outputs.outputs.PRIMARY_ALIAS }}/
 
       - name: Deploy to S3 (hashed assets — long cache)
         env:
@@ -146,8 +320,3 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id "${DISTRIBUTION_ID}" \
             --paths "/*"
-
-      - name: Reminder for infrastructure changes
-        run: |
-          echo "Note: changes to infra/ are not auto-applied by this pipeline."
-          echo "Run terraform plan/apply manually when infrastructure changes are needed."

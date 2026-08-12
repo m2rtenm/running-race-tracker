@@ -4,14 +4,12 @@ resource "aws_cloudfront_distribution" "website" {
   default_root_object = "index.html"
 
   origin {
-    domain_name = aws_s3_bucket.website.bucket_regional_domain_name
-    origin_id   = "s3-origin"
+    domain_name              = aws_s3_bucket.website.bucket_regional_domain_name
+    origin_id                = "s3-origin"
+    origin_access_control_id = aws_cloudfront_origin_access_control.website.id
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
+    s3_origin_config {
+      origin_access_identity = ""
     }
   }
 

@@ -24,20 +24,12 @@ export async function handler(event, context) {
     return await router.handle(event);
   } catch (error) {
     console.error('Unhandled error:', error);
-
-    // Handle explicit error throws from handlers
     if (error.statusCode && error.body) {
-      return {
-        statusCode: error.statusCode,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        body: JSON.stringify(error.body),
-      };
+      throw error;
     }
-
-    return {
+    throw {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({ error: 'Internal server error' }),
+      body: { error: 'Internal server error' },
     };
   }
 }

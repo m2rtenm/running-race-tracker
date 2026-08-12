@@ -110,7 +110,7 @@ resource "aws_cognito_user_pool" "main" {
   }
 
   admin_create_user_config {
-    allow_admin_create_user_only = false
+    allow_admin_create_user_only = true
   }
 
   lambda_config {
@@ -190,7 +190,7 @@ resource "aws_cognito_user_pool_client" "main" {
     refresh_token = "days"
   }
 
-  explicit_auth_flows = ["ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_SRP_AUTH"]
+  explicit_auth_flows = ["ALLOW_REFRESH_TOKEN_AUTH"]
 
   depends_on = [aws_cognito_identity_provider.google]
 }

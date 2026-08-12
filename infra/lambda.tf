@@ -19,11 +19,17 @@ resource "aws_lambda_function" "api" {
       RACES_TABLE_NAME          = aws_dynamodb_table.races.name
       STRAVA_IMPORTS_TABLE_NAME = aws_dynamodb_table.strava_imports.name
       COGNITO_REGION            = var.aws_region
-      COGNITO_USER_POOL_ID      = aws_cognito_user_pool.main.id
-      COGNITO_CLIENT_ID         = aws_cognito_user_pool_client.main.id
-      STRAVA_CLIENT_ID          = var.strava_client_id
-      STRAVA_CLIENT_SECRET      = var.strava_client_secret
-      STRAVA_REDIRECT_URI       = var.strava_redirect_uri
+      ALLOWED_ORIGINS = join(",", concat(
+        [
+          "https://${aws_cloudfront_distribution.website.domain_name}"
+        ],
+        [for domain in local.effective_cloudfront_aliases : "https://${domain}"]
+      ))
+      COGNITO_USER_POOL_ID = aws_cognito_user_pool.main.id
+      COGNITO_CLIENT_ID    = aws_cognito_user_pool_client.main.id
+      STRAVA_CLIENT_ID     = var.strava_client_id
+      STRAVA_CLIENT_SECRET = var.strava_client_secret
+      STRAVA_REDIRECT_URI  = var.strava_redirect_uri
     }
   }
 }
