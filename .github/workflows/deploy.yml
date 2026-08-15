@@ -179,6 +179,9 @@ jobs:
         working-directory: infra
         run: terraform apply -input=false tfplan
 
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
       - name: Read Terraform outputs
         working-directory: infra
         id: tf_outputs
@@ -189,7 +192,7 @@ jobs:
           COGNITO_POOL_ID=$(terraform output -raw cognito_user_pool_id)
           COGNITO_CLIENT_ID=$(terraform output -raw cognito_user_pool_client_id)
           COGNITO_DOMAIN=$(terraform output -raw cognito_domain)
-          APP_URL=$(terraform output -raw cloudfront_aliases | tr -d '[]",' | awk '{print $1}')
+          APP_URL=$(terraform output -json cloudfront_aliases | jq -r '.[0]')
           {
             echo "BUCKET=${BUCKET}"
             echo "DISTRIBUTION_ID=${DISTRIBUTION_ID}"
@@ -302,4 +305,3 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id "${DISTRIBUTION_ID}" \
             --paths "/*"
-
