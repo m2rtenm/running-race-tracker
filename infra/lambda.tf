@@ -30,6 +30,7 @@ resource "aws_lambda_function" "api" {
       STRAVA_CLIENT_ID_PARAM_NAME     = "/running-race-tracker/strava_client_id"
       STRAVA_CLIENT_SECRET_PARAM_NAME = "/running-race-tracker/strava_client_secret"
       STRAVA_REDIRECT_URI             = var.strava_redirect_uri
+      DEPLOYMENT_MARKER               = data.archive_file.lambda.output_base64sha256
     }
   }
 }

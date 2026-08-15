@@ -192,6 +192,7 @@ export async function completeHostedUiSignIn(callbackUrl = window.location.href)
   saveTokens(accessToken, refreshToken, user);
   sessionStorage.removeItem(OAUTH_STATE_KEY);
   sessionStorage.removeItem(OAUTH_VERIFIER_KEY);
+  window.history.replaceState({}, document.title, '/');
 
   return { user, accessToken, refreshToken };
 }

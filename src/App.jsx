@@ -29,6 +29,14 @@ function isAuthCallback() {
 function AppContent() {
   const { isAuthenticated, logout } = useAuth();
 
+  if (isAuthCallback()) {
+    return (
+      <Suspense fallback={null}>
+        <AuthCallbackPage />
+      </Suspense>
+    );
+  }
+
   if (isAuthenticated) {
     if (isStravaCallback()) {
       return (
@@ -44,14 +52,6 @@ function AppContent() {
   if (isStravaCallback()) {
     window.location.replace('/');
     return null;
-  }
-
-  if (isAuthCallback()) {
-    return (
-      <Suspense fallback={null}>
-        <AuthCallbackPage />
-      </Suspense>
-    );
   }
 
   if (!isAuthenticated) {
