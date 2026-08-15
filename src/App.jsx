@@ -37,21 +37,16 @@ function AppContent() {
     );
   }
 
-  if (isAuthenticated) {
-    if (isStravaCallback()) {
-      return (
-        <Suspense fallback={null}>
-          <StravaCallbackPage />
-        </Suspense>
-      );
-    }
-
-    return <Dashboard onLogout={logout} />;
+  if (isStravaCallback()) {
+    return (
+      <Suspense fallback={null}>
+        <StravaCallbackPage />
+      </Suspense>
+    );
   }
 
-  if (isStravaCallback()) {
-    window.location.replace('/');
-    return null;
+  if (isAuthenticated) {
+    return <Dashboard onLogout={logout} />;
   }
 
   if (!isAuthenticated) {
