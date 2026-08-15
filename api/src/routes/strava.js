@@ -33,10 +33,16 @@ async function getStravaConfig() {
     throw { statusCode: 503, body: { error: 'Strava integration is not configured in environment.' } };
   }
 
-  const response = await ssmClient.send(new GetParametersCommand({
-    Names: [clientIdParam, clientSecretParam],
-    WithDecryption: true,
-  }));
+  let response;
+  try {
+    response = await ssmClient.send(new GetParametersCommand({
+      Names: [clientIdParam, clientSecretParam],
+      WithDecryption: true,
+    }));
+  } catch (error) {
+    console.error('Failed to load Strava credentials from SSM:', error);
+    throw { statusCode: 503, body: { error: 'Unable to read Strava credentials from AWS SSM.' } };
+  }
 
   const values = Object.fromEntries((response.Parameters || []).map((p) => [p.Name, p.Value]));
   const clientId = values[clientIdParam];
