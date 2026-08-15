@@ -35,7 +35,15 @@ async function request(path, options = {}) {
       throw new Error('Unauthorized - please log in again');
     }
     const payload = await response.text();
-    throw new Error(payload || `Request failed (${response.status})`);
+    try {
+      const { error } = JSON.parse(payload);
+      throw new Error(error || `Request failed (${response.status})`);
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(payload || `Request failed (${response.status})`);
+      }
+      throw error;
+    }
   }
 
   const contentType = response.headers.get('content-type') || '';

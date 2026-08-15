@@ -50,7 +50,7 @@ export default function StravaConnect({ onSyncComplete }) {
       const { authUrl } = await stravaGetAuthUrl();
       window.location.href = authUrl;
     } catch (err) {
-      setError('Failed to initiate Strava connection. Make sure Strava is configured.');
+      setError(err.message || 'Failed to initiate Strava connection.');
     }
   }
 
