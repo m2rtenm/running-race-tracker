@@ -104,7 +104,9 @@ jobs:
       - name: Terraform init
         if: needs.changes.outputs.infra_changed == 'true'
         working-directory: infra
-        run: terraform init -input=false
+        env:
+          AWS_STATE_ROLE_ARN: ${{ secrets.AWS_STATE_ROLE_ARN }}
+        run: terraform init -input=false -backend-config="role_arn=${AWS_STATE_ROLE_ARN}"
 
       - name: Configure AWS credentials for Terraform plan
         if: needs.changes.outputs.infra_changed == 'true'
@@ -187,7 +189,9 @@ jobs:
 
       - name: Terraform init
         working-directory: infra
-        run: terraform init -input=false
+        env:
+          AWS_STATE_ROLE_ARN: ${{ secrets.AWS_STATE_ROLE_ARN }}
+        run: terraform init -input=false -backend-config="role_arn=${AWS_STATE_ROLE_ARN}"
 
       - name: Configure AWS credentials for Terraform apply
         uses: aws-actions/configure-aws-credentials@v5.1.0
@@ -282,7 +286,9 @@ jobs:
 
       - name: Terraform init
         working-directory: infra
-        run: terraform init -input=false
+        env:
+          AWS_STATE_ROLE_ARN: ${{ secrets.AWS_STATE_ROLE_ARN }}
+        run: terraform init -input=false -backend-config="role_arn=${AWS_STATE_ROLE_ARN}"
 
       - name: Read Terraform outputs
         working-directory: infra
