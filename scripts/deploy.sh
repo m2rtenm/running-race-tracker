@@ -16,16 +16,20 @@ if [[ -z "$distribution_id" ]]; then
   distribution_id="$(terraform -chdir=infra output -raw cloudfront_distribution_id)"
 fi
 
-# Long cache for immutable hashed assets
+# Long cache for immutable versioned assets
 aws s3 sync dist/ "s3://${bucket_name}" \
   --delete \
   --exclude "index.html" \
+  --exclude "manifest.json" \
+  --exclude "manifest.webmanifest" \
+  --exclude "sw.js" \
   --cache-control "public,max-age=31536000,immutable"
 
-# No-cache for HTML shell
-aws s3 cp dist/index.html "s3://${bucket_name}/index.html" \
-  --cache-control "no-cache,no-store,must-revalidate" \
-  --content-type "text/html"
+# No-cache for files that must be refreshed to update the PWA.
+for file in index.html manifest.json manifest.webmanifest sw.js; do
+  aws s3 cp "dist/${file}" "s3://${bucket_name}/${file}" \
+    --cache-control "no-cache,no-store,must-revalidate"
+done
 
 aws cloudfront create-invalidation \
   --distribution-id "$distribution_id" \
