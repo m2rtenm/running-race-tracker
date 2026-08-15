@@ -1,4 +1,5 @@
 import { Router } from '../router.js';
+import { SSMClient, GetParametersCommand } from '@aws-sdk/client-ssm';
 import {
   saveStravaTokens,
   getStravaTokens,
@@ -12,6 +13,43 @@ const basePath = '/strava';
 
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 const STRAVA_ACTIVITIES_URL = 'https://www.strava.com/api/v3/athlete/activities';
+const ssmClient = new SSMClient({ region: process.env.AWS_REGION || process.env.COGNITO_REGION || 'eu-north-1' });
+
+let stravaSecretsCache = null;
+let stravaSecretsLoadedAt = 0;
+const STRAVA_SECRETS_TTL_MS = 5 * 60 * 1000;
+
+async function getStravaConfig() {
+  const now = Date.now();
+  if (stravaSecretsCache && now - stravaSecretsLoadedAt < STRAVA_SECRETS_TTL_MS) {
+    return stravaSecretsCache;
+  }
+
+  const clientIdParam = process.env.STRAVA_CLIENT_ID_PARAM_NAME;
+  const clientSecretParam = process.env.STRAVA_CLIENT_SECRET_PARAM_NAME;
+  const redirectUri = process.env.STRAVA_REDIRECT_URI;
+
+  if (!clientIdParam || !clientSecretParam || !redirectUri) {
+    throw { statusCode: 503, body: { error: 'Strava integration is not configured in environment.' } };
+  }
+
+  const response = await ssmClient.send(new GetParametersCommand({
+    Names: [clientIdParam, clientSecretParam],
+    WithDecryption: true,
+  }));
+
+  const values = Object.fromEntries((response.Parameters || []).map((p) => [p.Name, p.Value]));
+  const clientId = values[clientIdParam];
+  const clientSecret = values[clientSecretParam];
+
+  if (!clientId || !clientSecret) {
+    throw { statusCode: 503, body: { error: 'Strava integration secrets are missing in SSM.' } };
+  }
+
+  stravaSecretsCache = { clientId, clientSecret, redirectUri };
+  stravaSecretsLoadedAt = now;
+  return stravaSecretsCache;
+}
 
 // ============================================================================
 // HELPERS
@@ -51,8 +89,7 @@ async function refreshStravaTokenIfNeeded(tokens) {
     return tokens;
   }
 
-  const clientId = process.env.STRAVA_CLIENT_ID;
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+  const { clientId, clientSecret } = await getStravaConfig();
 
   const res = await fetch(STRAVA_TOKEN_URL, {
     method: 'POST',
@@ -134,12 +171,7 @@ router.get(`${basePath}/auth`, async (request) => {
     throw { statusCode: 401, body: { error: 'Unauthorized' } };
   }
 
-  const clientId = process.env.STRAVA_CLIENT_ID;
-  const redirectUri = process.env.STRAVA_REDIRECT_URI;
-
-  if (!clientId) {
-    throw { statusCode: 503, body: { error: 'Strava integration not configured' } };
-  }
+  const { clientId, redirectUri } = await getStravaConfig();
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -190,12 +222,7 @@ router.post(`${basePath}/exchange`, async (request) => {
     throw { statusCode: 400, body: { error: 'Authorization code is required' } };
   }
 
-  const clientId = process.env.STRAVA_CLIENT_ID;
-  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw { statusCode: 503, body: { error: 'Strava integration not configured' } };
-  }
+  const { clientId, clientSecret } = await getStravaConfig();
 
   // Exchange authorization code for tokens
   const res = await fetch(STRAVA_TOKEN_URL, {

@@ -159,13 +159,25 @@ After apply, point DNS for `running.mandla.tech` to the CloudFront distribution 
 
 ## Strava configuration
 
-Set Terraform variables for Strava:
+Strava client credentials are read by Lambda from **AWS SSM Parameter Store** at runtime.
 
-- `strava_client_id`
-- `strava_client_secret`
-- `strava_redirect_uri` (for example `https://your-domain/strava/callback`)
+Create parameters (in `eu-north-1`) before deploying:
 
-Then run `terraform apply` again to update Lambda environment variables.
+```bash
+aws ssm put-parameter --region eu-north-1 --type SecureString \
+  --name /running-race-tracker/strava_client_id \
+  --value "<your_strava_client_id>" --overwrite
+
+aws ssm put-parameter --region eu-north-1 --type SecureString \
+  --name /running-race-tracker/strava_client_secret \
+  --value "<your_strava_client_secret>" --overwrite
+```
+
+Strava redirect URI is still Terraform-managed via:
+
+- `strava_redirect_uri` (default: `https://running.mandla.tech/strava/callback`)
+
+After setting SSM parameters, run `terraform apply` so Lambda IAM/env updates are in place.
 
 ## Optional: Google sign-in via Cognito
 

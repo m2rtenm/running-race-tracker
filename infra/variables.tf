@@ -35,23 +35,10 @@ variable "bucket_name" {
   default = "running-race-tracker-app"
 }
 
-variable "strava_client_id" {
-  type        = string
-  description = "Strava API application client ID"
-  default     = ""
-}
-
-variable "strava_client_secret" {
-  type        = string
-  description = "Strava API application client secret"
-  sensitive   = true
-  default     = ""
-}
-
 variable "strava_redirect_uri" {
   type        = string
   description = "Strava OAuth redirect URI (frontend /strava/callback URL)"
-  default     = "http://localhost:5173/strava/callback"
+  default     = "https://running.mandla.tech/strava/callback"
 }
 
 variable "cognito_domain_prefix" {

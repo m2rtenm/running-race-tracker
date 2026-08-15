@@ -48,6 +48,17 @@ resource "aws_iam_role_policy" "dynamodb_races" {
           "dynamodb:DeleteItem"
         ]
         Resource = aws_dynamodb_table.strava_imports.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters"
+        ]
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/running-race-tracker/strava_client_id",
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/running-race-tracker/strava_client_secret"
+        ]
       }
     ]
   })

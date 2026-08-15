@@ -27,8 +27,8 @@ resource "aws_lambda_function" "api" {
       ))
       COGNITO_USER_POOL_ID = aws_cognito_user_pool.main.id
       COGNITO_CLIENT_ID    = aws_cognito_user_pool_client.main.id
-      STRAVA_CLIENT_ID     = var.strava_client_id
-      STRAVA_CLIENT_SECRET = var.strava_client_secret
+      STRAVA_CLIENT_ID_PARAM_NAME     = "/running-race-tracker/strava_client_id"
+      STRAVA_CLIENT_SECRET_PARAM_NAME = "/running-race-tracker/strava_client_secret"
       STRAVA_REDIRECT_URI  = var.strava_redirect_uri
     }
   }
