@@ -30,6 +30,8 @@ jobs:
           filters: |
             infra:
               - 'infra/**'
+              - 'api/**'
+              - '.github/workflows/deploy.yml'
             app:
               - 'src/**'
               - 'api/**'
@@ -128,6 +130,7 @@ jobs:
           path: |
             infra/tfplan
             infra/.terraform.lock.hcl
+            infra/lambda.zip
           retention-days: 7
 
   infra_apply:
