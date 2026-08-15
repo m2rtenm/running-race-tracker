@@ -1,4 +1,4 @@
-name: Verify, Plan, Apply and Deploy
+name: CI / CD
 
 on:
   pull_request:
@@ -41,7 +41,7 @@ jobs:
               - 'scripts/**'
               - '.github/workflows/**'
 
-  verify:
+  ci:
     runs-on: ubuntu-latest
     needs: changes
     permissions:
@@ -68,24 +68,19 @@ jobs:
       - name: Validate required role configuration
         if: needs.changes.outputs.infra_changed == 'true'
         env:
-          AWS_STATE_ROLE_ARN: ${{ secrets.AWS_STATE_ROLE_ARN }}
           AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
         run: |
-          if [ -z "$AWS_STATE_ROLE_ARN" ]; then
-            echo "Missing secret: AWS_STATE_ROLE_ARN"
-            exit 1
-          fi
           if [ -z "$AWS_DEPLOY_ROLE_ARN" ]; then
             echo "Missing secret: AWS_DEPLOY_ROLE_ARN"
             exit 1
           fi
 
-      - name: Configure AWS credentials for Terraform backend
+      - name: Configure AWS credentials
         if: needs.changes.outputs.infra_changed == 'true'
         uses: aws-actions/configure-aws-credentials@v5.1.0
         with:
-          role-to-assume: ${{ secrets.AWS_STATE_ROLE_ARN }}
-          role-session-name: gha-terraform-verify
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gha-terraform-ci
           aws-region: eu-north-1
           audience: sts.amazonaws.com
 
@@ -105,15 +100,6 @@ jobs:
         if: needs.changes.outputs.infra_changed == 'true'
         working-directory: infra
         run: terraform init -input=false
-
-      - name: Configure AWS credentials for Terraform plan
-        if: needs.changes.outputs.infra_changed == 'true'
-        uses: aws-actions/configure-aws-credentials@v5.1.0
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          role-session-name: gha-terraform-plan
-          aws-region: eu-north-1
-          audience: sts.amazonaws.com
 
       - name: Terraform validate
         if: needs.changes.outputs.infra_changed == 'true'
@@ -146,8 +132,8 @@ jobs:
 
   infra_apply:
     runs-on: ubuntu-latest
-    needs: [changes, verify]
-    if: github.event_name != 'pull_request' && needs.verify.outputs.has_plan == 'true'
+    needs: [changes, ci]
+    if: github.event_name != 'pull_request' && needs.ci.outputs.has_plan == 'true'
     permissions:
       id-token: write
       contents: read
@@ -171,11 +157,11 @@ jobs:
           name: terraform-plan
           path: infra
 
-      - name: Configure AWS credentials for Terraform backend
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5.1.0
         with:
-          role-to-assume: ${{ secrets.AWS_STATE_ROLE_ARN }}
-          role-session-name: gha-terraform-apply
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gha-terraform-cd
           aws-region: eu-north-1
           audience: sts.amazonaws.com
 
@@ -189,25 +175,9 @@ jobs:
         working-directory: infra
         run: terraform init -input=false
 
-      - name: Configure AWS credentials for Terraform apply
-        uses: aws-actions/configure-aws-credentials@v5.1.0
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          role-session-name: gha-terraform-apply-resources
-          aws-region: eu-north-1
-          audience: sts.amazonaws.com
-
       - name: Terraform apply saved plan
         working-directory: infra
         run: terraform apply -input=false tfplan
-
-      - name: Configure AWS credentials for Terraform outputs
-        uses: aws-actions/configure-aws-credentials@v5.1.0
-        with:
-          role-to-assume: ${{ secrets.AWS_STATE_ROLE_ARN }}
-          role-session-name: gha-terraform-outputs
-          aws-region: eu-north-1
-          audience: sts.amazonaws.com
 
       - name: Read Terraform outputs
         working-directory: infra
@@ -232,8 +202,12 @@ jobs:
 
   deploy_app:
     runs-on: ubuntu-latest
-    needs: [changes, verify]
-    if: github.event_name != 'pull_request'
+    needs: [changes, ci, infra_apply]
+    if: |
+      always() &&
+      github.event_name != 'pull_request' &&
+      needs.ci.result == 'success' &&
+      (needs.infra_apply.result == 'success' || needs.infra_apply.result == 'skipped')
     permissions:
       id-token: write
       contents: read
@@ -249,28 +223,14 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Validate required role configuration
-        env:
-          AWS_STATE_ROLE_ARN: ${{ secrets.AWS_STATE_ROLE_ARN }}
-          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-        run: |
-          if [ -z "$AWS_STATE_ROLE_ARN" ]; then
-            echo "Missing secret: AWS_STATE_ROLE_ARN"
-            exit 1
-          fi
-          if [ -z "$AWS_DEPLOY_ROLE_ARN" ]; then
-            echo "Missing secret: AWS_DEPLOY_ROLE_ARN"
-            exit 1
-          fi
+      - name: Install dependencies
+        run: npm ci --loglevel=error
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Configure AWS credentials for Terraform backend
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5.1.0
         with:
-          role-to-assume: ${{ secrets.AWS_STATE_ROLE_ARN }}
-          role-session-name: gha-terraform-output-backend
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gha-app-cd
           aws-region: eu-north-1
           audience: sts.amazonaws.com
 
@@ -279,6 +239,9 @@ jobs:
         with:
           terraform_version: 1.5.0
           terraform_wrapper: false
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Terraform init
         working-directory: infra
@@ -304,17 +267,6 @@ jobs:
             echo "COGNITO_DOMAIN=${COGNITO_DOMAIN}"
             echo "PRIMARY_ALIAS=${PRIMARY_ALIAS}"
           } >> "$GITHUB_OUTPUT"
-
-      - name: Configure AWS credentials for deployment
-        uses: aws-actions/configure-aws-credentials@v5.1.0
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          role-session-name: gha-app-deploy
-          aws-region: eu-north-1
-          audience: sts.amazonaws.com
-
-      - name: Install dependencies
-        run: npm ci --loglevel=error
 
       - name: Build production bundle
         run: npm run build
@@ -350,3 +302,4 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id "${DISTRIBUTION_ID}" \
             --paths "/*"
+
