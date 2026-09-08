@@ -245,11 +245,31 @@ th {
 }
 
 .race-records-table {
-  min-width: 700px;
+  min-width: 900px;
 }
 
 .race-records-table td {
   vertical-align: middle;
+}
+
+.race-records-table th,
+.race-records-table td {
+  padding: 0.45rem 0.5rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.table-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.race-records-table .secondary,
+.race-records-table .delete-btn,
+.race-records-table .save-btn {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
 }
 
 .race-records-table tr.editing-row {

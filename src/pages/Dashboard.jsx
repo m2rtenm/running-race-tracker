@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/StatCard';
-import PerformanceChart from '../components/PerformanceChart';
 import StravaConnect from '../components/StravaConnect';
 import { createRace, deleteRaceById, listRaces, updateRace } from '../api';
 import '../App.css';
@@ -44,6 +43,18 @@ function formatSeconds(totalSeconds) {
   parts.push(String(minutes).padStart(2, '0'));
   parts.push(String(seconds).padStart(2, '0'));
   return parts.join(':');
+}
+
+function formatPace(totalSeconds, distanceKm) {
+  const distance = Number(distanceKm);
+  if (!Number.isFinite(totalSeconds) || !Number.isFinite(distance) || distance <= 0) {
+    return '—';
+  }
+
+  const secondsPerKm = Math.round(totalSeconds / distance);
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = secondsPerKm % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')} /km`;
 }
 
 function formatDate(dateValue) {
@@ -100,15 +111,15 @@ function Dashboard({ onLogout }) {
     const averageTime = totalRaces
       ? Math.round(sortedRaces.reduce((sum, race) => sum + race.officialResultSeconds, 0) / totalRaces)
       : 0;
-    const bestTime = totalRaces
-      ? sortedRaces.reduce((best, race) => Math.min(best, race.officialResultSeconds), Number.POSITIVE_INFINITY)
+    const fastestOfficialPaceSeconds = totalRaces
+      ? sortedRaces.reduce((best, race) => Math.min(best, race.officialResultSeconds / Number(race.officialDistance)), Number.POSITIVE_INFINITY)
       : null;
 
     return {
       totalRaces,
       totalDistance,
       averageTime,
-      bestTime,
+      fastestOfficialPaceSeconds,
     };
   }, [sortedRaces]);
 
@@ -153,39 +164,6 @@ function Dashboard({ onLogout }) {
       average: values.count ? Math.round(values.totalTime / values.count) : 0,
       best: values.bestTime === Infinity ? null : values.bestTime,
     })).sort((a, b) => Number(b.label) - Number(a.label));
-  }, [sortedRaces]);
-
-  const competitionStats = useMemo(() => {
-    const grouped = new Map();
-    for (const race of sortedRaces) {
-      const key = race.competitionName.toLowerCase();
-      if (!grouped.has(key)) {
-        grouped.set(key, { competitionName: race.competitionName, count: 0, totalTime: 0, bestTime: Infinity, bestYear: null, distances: [] });
-      }
-      const bucket = grouped.get(key);
-      bucket.count += 1;
-      bucket.totalTime += race.officialResultSeconds;
-      bucket.distances.push(Number(race.officialDistance));
-      if (race.officialResultSeconds < bucket.bestTime) {
-        bucket.bestTime = race.officialResultSeconds;
-        bucket.bestYear = new Date(race.date).getFullYear();
-      }
-    }
-
-    return [...grouped.values()].map((values) => {
-      // Pick most common official distance for this competition
-      const distFreq = {};
-      values.distances.forEach((d) => { distFreq[d] = (distFreq[d] || 0) + 1; });
-      const officialDistance = Number(Object.entries(distFreq).sort((a, b) => b[1] - a[1])[0][0]);
-      return {
-        competitionName: values.competitionName,
-        count: values.count,
-        officialDistance,
-        average: values.count ? Math.round(values.totalTime / values.count) : 0,
-        best: values.bestTime === Infinity ? null : values.bestTime,
-        bestYear: values.bestYear,
-      };
-    }).sort((a, b) => a.competitionName.localeCompare(b.competitionName));
   }, [sortedRaces]);
 
   function handleChange(event) {
@@ -358,12 +336,8 @@ function Dashboard({ onLogout }) {
         <div className="stats-grid">
           <StatCard label="Total races" value={summary.totalRaces} kind="races" />
           <StatCard label="Total distance" value={`${summary.totalDistance.toFixed(1)} km`} kind="distance" />
-          <StatCard label="Best result" value={summary.bestTime ? formatSeconds(summary.bestTime) : '—'} kind="best" />
+          <StatCard label="Fastest official pace" value={summary.fastestOfficialPaceSeconds ? formatPace(summary.fastestOfficialPaceSeconds, 1) : '—'} kind="best" />
           <StatCard label="Years tracked" value={new Set(sortedRaces.map((race) => new Date(race.date).getFullYear())).size} kind="years" />
-        </div>
-
-        <div className="chart-section">
-          <PerformanceChart races={sortedRaces} />
         </div>
 
         <div className="stats-grid stats-grid-compact">
@@ -412,31 +386,6 @@ function Dashboard({ onLogout }) {
           </div>
         </div>
 
-        <div className="table-card full-width">
-          <h3>Competition comparison</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Competition</th>
-                <th>Distance</th>
-                <th>Races</th>
-                <th>Best</th>
-                <th>Average</th>
-              </tr>
-            </thead>
-            <tbody>
-              {competitionStats.map((item) => (
-                <tr key={item.competitionName}>
-                  <td>{item.competitionName}</td>
-                  <td>{item.officialDistance} km</td>
-                  <td>{item.count}</td>
-                  <td>{item.best ? `${formatSeconds(item.best)} (${item.bestYear})` : '—'}</td>
-                  <td>{item.average ? formatSeconds(item.average) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </section>
 
       <section className="panel">
@@ -456,7 +405,9 @@ function Dashboard({ onLogout }) {
                   <th>Official dist.</th>
                   <th>Actual dist.</th>
                   <th>Official result</th>
-                  <th style={{ width: '120px' }}></th>
+                  <th>Official pace</th>
+                  <th>Actual pace</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -489,14 +440,16 @@ function Dashboard({ onLogout }) {
                           ? <input className="inline-input" name="officialResult" placeholder="HH:MM:SS" value={inlineEditForm.officialResult} onChange={handleInlineChange} style={{ width: '100px' }} />
                           : race.officialResult}
                       </td>
+                      <td>{isEditing ? '—' : formatPace(race.officialResultSeconds, race.officialDistance)}</td>
+                      <td>{isEditing ? '—' : formatPace(race.officialResultSeconds, race.actualDistance)}</td>
                       <td>
                         {isEditing ? (
-                          <div style={{ display: 'flex', gap: '6px' }}>
+                          <div className="table-actions">
                             <button type="button" className="save-btn" onClick={saveInlineEdit}>Save</button>
                             <button type="button" className="secondary" onClick={cancelInlineEdit}>✕</button>
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', gap: '6px' }}>
+                          <div className="table-actions">
                             <button type="button" className="secondary" onClick={() => startInlineEdit(race)}>Edit</button>
                             <button type="button" className="delete-btn" onClick={() => handleDelete(race.id)}>Delete</button>
                           </div>

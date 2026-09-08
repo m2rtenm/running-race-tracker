@@ -1,10 +1,7 @@
 import { useState, useMemo } from 'react';
 import StatCard from './StatCard';
 import PRsCard from './PRsCard';
-import PaceChart from './PaceChart';
 import YearlyCard from './YearlyCard';
-import ConsistencyHeatmap from './ConsistencyHeatmap';
-import CompetitionChart from './CompetitionChart';
 import { calculateSummary } from '../utils/statsCalculations';
 
 export default function StatsOverview({ races = [] }) {
@@ -15,10 +12,7 @@ export default function StatsOverview({ races = [] }) {
   const tabs = [
     { id: 'summary', label: '📊 Summary', icon: '📊' },
     { id: 'prs', label: '🏆 PRs', icon: '🏆' },
-    { id: 'pace', label: '📈 Pace', icon: '📈' },
     { id: 'yearly', label: '📅 Yearly', icon: '📅' },
-    { id: 'consistency', label: '🔥 Consistency', icon: '🔥' },
-    { id: 'competitions', label: '🏅 Competitions', icon: '🏅' },
   ];
 
   return (
@@ -92,17 +86,8 @@ export default function StatsOverview({ races = [] }) {
       {/* PRs Tab */}
       {activeTab === 'prs' && <PRsCard races={races} />}
 
-      {/* Pace Tab */}
-      {activeTab === 'pace' && <PaceChart races={races} />}
-
       {/* Yearly Tab */}
       {activeTab === 'yearly' && <YearlyCard races={races} />}
-
-      {/* Consistency Tab */}
-      {activeTab === 'consistency' && <ConsistencyHeatmap races={races} />}
-
-      {/* Competitions Tab */}
-      {activeTab === 'competitions' && <CompetitionChart races={races} />}
     </div>
   );
 }

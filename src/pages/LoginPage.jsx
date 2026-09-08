@@ -40,9 +40,7 @@ function LoginPage() {
           <h3>Your running journey, tracked</h3>
           <ul>
             <li>📊 Personal records by distance</li>
-            <li>📈 Pace trends over time</li>
             <li>📅 Yearly summaries</li>
-            <li>🔥 Consistency tracking</li>
             <li>🔗 Strava import</li>
           </ul>
         </div>
