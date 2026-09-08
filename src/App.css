@@ -81,8 +81,9 @@ input {
 }
 
 .race-form-submit {
-  padding: 0.5rem 0.85rem;
-  font-size: 0.9rem;
+  border-radius: 8px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
   line-height: 1.2;
 }
 
