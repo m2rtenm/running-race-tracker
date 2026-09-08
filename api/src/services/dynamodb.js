@@ -118,6 +118,43 @@ export async function deleteRace(userId, raceId) {
   }
 }
 
+async function deleteUserItems(tableName, sortKey, userId) {
+  let exclusiveStartKey;
+
+  do {
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: 'userId = :userId',
+        ExpressionAttributeValues: { ':userId': userId },
+        ProjectionExpression: `userId, ${sortKey}`,
+        ExclusiveStartKey: exclusiveStartKey,
+      })
+    );
+
+    for (const item of result.Items || []) {
+      await docClient.send(
+        new DeleteCommand({
+          TableName: tableName,
+          Key: { userId: item.userId, [sortKey]: item[sortKey] },
+        })
+      );
+    }
+
+    exclusiveStartKey = result.LastEvaluatedKey;
+  } while (exclusiveStartKey);
+}
+
+export async function deleteAllUserData(userId) {
+  try {
+    await deleteUserItems(RACES_TABLE, 'raceId', userId);
+    await deleteUserItems(STRAVA_TABLE, 'importId', userId);
+  } catch (error) {
+    console.error('Error deleting user data:', error);
+    throw error;
+  }
+}
+
 // ============================================================================
 // STRAVA IMPORTS SERVICE
 // ============================================================================

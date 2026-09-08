@@ -2,7 +2,9 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback } fro
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/StatCard';
 import StravaConnect from '../components/StravaConnect';
-import { createRace, deleteRaceById, listRaces, updateRace } from '../api';
+import RaceInsights from '../components/RaceInsights';
+import { createRace, deleteAccountData, deleteRaceById, listRaces, updateRace } from '../api';
+import { getDistanceBucket } from '../utils/statsCalculations';
 import '../App.css';
 
 const StatsOverview = lazy(() => import('../components/StatsOverview'));
@@ -73,7 +75,7 @@ function normalizeRace(race) {
 }
 
 function Dashboard({ onLogout }) {
-  const { user } = useAuth();
+  const { user, deleteAccount } = useAuth();
   const [races, setRaces] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [status, setStatus] = useState('');
@@ -83,6 +85,7 @@ function Dashboard({ onLogout }) {
   // Inline editing state (in the race records table)
   const [inlineEditId, setInlineEditId] = useState(null);
   const [inlineEditForm, setInlineEditForm] = useState({});
+  const [filters, setFilters] = useState({ query: '', distance: 'all', year: 'all', sort: 'date-desc' });
 
   const loadRaces = useCallback(async () => {
     setIsLoading(true);
@@ -104,6 +107,22 @@ function Dashboard({ onLogout }) {
   }, [loadRaces]);
 
   const sortedRaces = useMemo(() => [...races].sort((a, b) => b.date.localeCompare(a.date)), [races]);
+  const filteredRaces = useMemo(() => {
+    const filtered = sortedRaces.filter((race) => {
+      const matchesQuery = race.competitionName.toLowerCase().includes(filters.query.trim().toLowerCase());
+      const matchesDistance = filters.distance === 'all' || getDistanceBucket(Number(race.officialDistance)) === filters.distance;
+      const matchesYear = filters.year === 'all' || race.date.startsWith(filters.year);
+      return matchesQuery && matchesDistance && matchesYear;
+    });
+
+    return filtered.sort((a, b) => {
+      if (filters.sort === 'pace-asc') return a.officialResultSeconds / a.officialDistance - b.officialResultSeconds / b.officialDistance;
+      if (filters.sort === 'distance-desc') return b.officialDistance - a.officialDistance;
+      return filters.sort === 'date-asc' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
+    });
+  }, [filters, sortedRaces]);
+  const distanceFilters = useMemo(() => [...new Set(sortedRaces.map((race) => getDistanceBucket(Number(race.officialDistance))))], [sortedRaces]);
+  const yearFilters = useMemo(() => [...new Set(sortedRaces.map((race) => race.date.slice(0, 4)))].sort().reverse(), [sortedRaces]);
 
   const summary = useMemo(() => {
     const totalRaces = sortedRaces.length;
@@ -259,7 +278,7 @@ function Dashboard({ onLogout }) {
   function handleDelete(id) {
     const nextRaces = races.filter((race) => race.id !== id);
     setRaces(nextRaces);
-    if (editingRaceId === id) {
+    if (inlineEditId === id) {
       cancelEdit();
     }
 
@@ -275,6 +294,38 @@ function Dashboard({ onLogout }) {
   function handleClear() {
     setRaces([]);
     setStatus('All races cleared.');
+  }
+
+  function exportRaces() {
+    const headings = ['Competition', 'Date', 'Official distance (km)', 'Actual distance (km)', 'Official result', 'Official pace', 'Actual pace'];
+    const rows = sortedRaces.map((race) => [
+      race.competitionName,
+      race.date,
+      race.officialDistance,
+      race.actualDistance,
+      race.officialResult,
+      formatPace(race.officialResultSeconds, race.officialDistance),
+      formatPace(race.officialResultSeconds, race.actualDistance),
+    ]);
+    const csv = [headings, ...rows].map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'running-race-tracker-races.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleDeleteAccount() {
+    if (!window.confirm('Delete your account, all race records, and the Strava connection? This cannot be undone.')) return;
+
+    try {
+      await deleteAccountData();
+      await deleteAccount();
+    } catch (error) {
+      console.error('Account deletion failed:', error);
+      setStatus(error.message || 'Unable to delete your account.');
+    }
   }
 
   return (
@@ -391,12 +442,39 @@ function Dashboard({ onLogout }) {
       <section className="panel">
         <div className="records-header">
           <h2>Race records</h2>
-          <button type="button" className="secondary" onClick={handleClear}>Clear all</button>
+          <div className="table-actions">
+            <button type="button" className="secondary" onClick={exportRaces}>Export CSV</button>
+            <button type="button" className="secondary" onClick={handleClear}>Clear all</button>
+          </div>
         </div>
         {sortedRaces.length === 0 ? (
           <p className="empty">No races added yet.</p>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <>
+            <div className="race-filters">
+              <input
+                aria-label="Search race records"
+                placeholder="Search competitions"
+                value={filters.query}
+                onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
+              />
+              <select value={filters.distance} onChange={(event) => setFilters((current) => ({ ...current, distance: event.target.value }))}>
+                <option value="all">All distances</option>
+                {distanceFilters.map((distance) => <option key={distance} value={distance}>{distance}</option>)}
+              </select>
+              <select value={filters.year} onChange={(event) => setFilters((current) => ({ ...current, year: event.target.value }))}>
+                <option value="all">All years</option>
+                {yearFilters.map((year) => <option key={year} value={year}>{year}</option>)}
+              </select>
+              <select value={filters.sort} onChange={(event) => setFilters((current) => ({ ...current, sort: event.target.value }))}>
+                <option value="date-desc">Newest first</option>
+                <option value="date-asc">Oldest first</option>
+                <option value="pace-asc">Fastest pace</option>
+                <option value="distance-desc">Longest distance</option>
+              </select>
+            </div>
+            <p className="record-count">Showing {filteredRaces.length} of {sortedRaces.length} records</p>
+            <div className="table-scroll">
             <table className="race-records-table">
               <thead>
                 <tr>
@@ -411,7 +489,7 @@ function Dashboard({ onLogout }) {
                 </tr>
               </thead>
               <tbody>
-                {sortedRaces.map((race) => {
+                {filteredRaces.map((race) => {
                   const isEditing = inlineEditId === race.id;
                   return (
                     <tr key={race.id} className={isEditing ? 'editing-row' : ''}>
@@ -460,13 +538,24 @@ function Dashboard({ onLogout }) {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </section>
+
+      <RaceInsights races={sortedRaces} />
 
       <Suspense fallback={<section className="panel"><p className="empty">Loading advanced statistics…</p></section>}>
         <StatsOverview races={sortedRaces} />
       </Suspense>
+
+      <section className="panel danger-zone">
+        <div>
+          <h2>Account and data</h2>
+          <p>Export your records before permanently deleting your account and all associated data.</p>
+        </div>
+        <button type="button" className="delete-btn" onClick={handleDeleteAccount}>Delete account and data</button>
+      </section>
     </main>
   );
 }

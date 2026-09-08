@@ -3,6 +3,7 @@ import { auth } from './middleware/auth.js';
 import racesRoutes from './routes/races.js';
 import statsRoutes from './routes/stats.js';
 import stravaRoutes from './routes/strava.js';
+import accountRoutes from './routes/account.js';
 
 const router = new Router();
 
@@ -13,6 +14,7 @@ router.use(auth);
 router.use(racesRoutes);
 router.use(statsRoutes);
 router.use(stravaRoutes);
+router.use(accountRoutes);
 
 // Health check (no auth required)
 router.get('/health', async (request) => {

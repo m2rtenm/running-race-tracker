@@ -5,6 +5,7 @@ import {
   signOut,
   signInWithGoogle,
   completeHostedUiSignIn,
+  deleteCurrentUser,
   getAccessToken,
   getStoredUser,
   isAuthenticated,
@@ -99,6 +100,21 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const deleteAccount = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await deleteCurrentUser();
+      setUser(null);
+    } catch (err) {
+      const errorMessage = err.message || 'Unable to delete account';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const loginWithGoogle = async () => {
     setError(null);
     await signInWithGoogle();
@@ -130,6 +146,7 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
+        deleteAccount,
         loginWithGoogle,
         completeGoogleCallback,
       }}

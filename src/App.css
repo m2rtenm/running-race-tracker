@@ -16,7 +16,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -100,6 +101,14 @@ input {
   border: 1px solid #dce4f0;
   padding: 0.75rem 0.9rem;
   color: #162033;
+}
+
+select {
+  border-radius: 8px;
+  border: 1px solid #dce4f0;
+  padding: 0.45rem 0.6rem;
+  color: #162033;
+  background: white;
 }
 
 button {
@@ -251,6 +260,27 @@ th {
   margin-bottom: 1rem;
 }
 
+.race-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.race-filters input {
+  min-width: 210px;
+  padding: 0.45rem 0.6rem;
+}
+
+.record-count {
+  margin: 0.6rem 0;
+  color: #5d6a82;
+  font-size: 0.85rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
 .race-records-table {
   min-width: 900px;
 }
@@ -281,6 +311,74 @@ th {
 
 .race-records-table tr.editing-row {
   background: #f0f6ff;
+}
+
+.insights-section,
+.quality-section {
+  background: white;
+  border: 1px solid #dce4f0;
+  border-radius: 24px;
+  box-shadow: 0 12px 24px rgba(22, 32, 51, 0.05);
+  padding: 1.25rem;
+}
+
+.insights-section h2,
+.quality-section h2,
+.danger-zone h2 {
+  margin: 0 0 0.75rem;
+}
+
+.compact-table {
+  min-width: 680px;
+}
+
+.compact-table th,
+.compact-table td {
+  padding: 0.55rem 0.5rem;
+  font-size: 0.9rem;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.insight-grid article {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid #dce4f0;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.insight-grid strong {
+  color: #5d6a82;
+  font-size: 0.85rem;
+}
+
+.quality-section {
+  border-color: #f5c56b;
+  background: #fffdf7;
+}
+
+.quality-section p,
+.quality-section ul,
+.danger-zone p {
+  color: #5d6a82;
+  margin: 0.5rem 0 0;
+}
+
+.quality-section ul {
+  padding-left: 1.25rem;
+}
+
+.danger-zone {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  border-color: #f3b7b7;
 }
 
 .inline-input {
@@ -353,5 +451,10 @@ th {
   .race-item {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .danger-zone {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

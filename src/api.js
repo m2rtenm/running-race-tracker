@@ -70,6 +70,10 @@ export async function deleteRaceById(raceId) {
   return request(`/races/${raceId}`, { method: 'DELETE' });
 }
 
+export async function deleteAccountData() {
+  return request('/account/data', { method: 'DELETE' });
+}
+
 export async function getStats(endpoint = 'summary') {
   return request(`/stats/${endpoint}`);
 }

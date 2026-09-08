@@ -34,8 +34,12 @@ export const calculatePace = (durationMinutes, distanceKm) => {
  * Format pace as "MM:SS per km"
  */
 export const formatPace = (paceMinPerKm) => {
-  const minutes = Math.floor(paceMinPerKm);
-  const seconds = Math.round((paceMinPerKm - minutes) * 60);
+  if (!Number.isFinite(paceMinPerKm) || paceMinPerKm <= 0) {
+    return '—';
+  }
+  const totalSeconds = Math.round(paceMinPerKm * 60);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, '0')} /km`;
 };
 

@@ -371,6 +371,32 @@ export async function signOut() {
   }
 }
 
+export async function deleteCurrentUser() {
+  const accessToken = getAccessToken();
+  if (!accessToken) {
+    throw new Error('You must be signed in to delete your account');
+  }
+
+  const response = await fetch(
+    `https://cognito-idp.${COGNITO_CONFIG.region}.amazonaws.com/`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-amz-json-1.1',
+        'X-Amz-Target': 'AWSCognitoIdentityProviderService.DeleteUser',
+      },
+      body: JSON.stringify({ AccessToken: accessToken }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Unable to delete your account');
+  }
+
+  clearTokens();
+}
+
 export function isAuthenticated() {
   const token = getAccessToken();
   return !isTokenExpired(token);
