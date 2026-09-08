@@ -80,6 +80,12 @@ input {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.race-form-submit {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
 label {
   display: flex;
   flex-direction: column;

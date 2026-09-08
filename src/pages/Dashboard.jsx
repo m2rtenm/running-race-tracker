@@ -325,7 +325,7 @@ function Dashboard({ onLogout }) {
             <input name="actualDistance" type="number" step="0.01" min="0.01" value={form.actualDistance} onChange={handleChange} required />
           </label>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button type="submit">Save race</button>
+            <button type="submit" className="race-form-submit">Save race</button>
           </div>
         </form>
         {status ? <p className="status">{status}</p> : null}
