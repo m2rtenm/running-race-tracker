@@ -16,19 +16,11 @@ export default function StatsOverview({ races = [] }) {
   ];
 
   return (
-    <div style={{ marginTop: '32px' }}>
+    <div className="stats-container">
       <h2 style={{ marginBottom: '20px', color: '#1f2937' }}>Statistics & Analytics</h2>
 
       {/* Tab Navigation */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          marginBottom: '20px',
-          overflowX: 'auto',
-          paddingBottom: '8px',
-        }}
-      >
+      <div className="stats-tabs">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -53,7 +45,7 @@ export default function StatsOverview({ races = [] }) {
 
       {/* Summary Tab */}
       {activeTab === 'summary' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+        <div className="stats-grid">
           <StatCard title="Total Races" icon="🏃">
             <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#10b981' }}>
               {summary.totalRaces}

@@ -14,7 +14,7 @@ export default function YearlyCard({ races }) {
 
   return (
     <StatCard title="Yearly Summary" icon="📅">
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+      <div className="stats-grid">
         {yearlyStats.map((year) => (
           <div
             key={year.year}

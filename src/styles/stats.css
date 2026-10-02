@@ -2,6 +2,7 @@
 
 .stats-container {
   margin-top: 32px;
+  min-width: 0;
 }
 
 .stats-tabs {
@@ -10,6 +11,7 @@
   margin-bottom: 20px;
   overflow-x: auto;
   padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .stats-tab {
@@ -41,8 +43,13 @@
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 16px;
+  min-width: 0;
+}
+
+.stats-grid > * {
+  min-width: 0;
 }
 
 .stats-summary-metric {
@@ -107,7 +114,7 @@
 
 .consistency-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -139,7 +146,7 @@
 
 .consistency-heatmap {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(30px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(30px, 100%), 1fr));
   gap: 4px;
 }
 
@@ -192,11 +199,17 @@
   }
 
   .consistency-heatmap {
-    grid-template-columns: repeat(auto-fit, minmax(24px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(24px, 100%), 1fr));
   }
 
   .consistency-cell {
     font-size: 10px;
     padding: 6px;
+  }
+}
+
+@media (max-width: 360px) {
+  .consistency-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -163,9 +163,9 @@ export default function StravaConnect({ onSyncComplete }) {
 
   return (
     <div style={containerStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+      <div className="strava-status-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         {/* Strava brand + status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="strava-connection-status" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <img
             src="https://upload.wikimedia.org/wikipedia/commons/c/cb/Strava_Logo.svg"
             alt="Strava"
@@ -182,7 +182,7 @@ export default function StravaConnect({ onSyncComplete }) {
         </div>
 
         {/* Action buttons */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="strava-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           {status?.connected ? (
             <>
               <button
@@ -314,7 +314,7 @@ export default function StravaConnect({ onSyncComplete }) {
               filteredRuns.map((run) => {
                 const checked = selectedRunIds.includes(run.id);
                 return (
-                  <label key={run.id} style={pickerRowStyle(run.imported)}>
+                  <label key={run.id} className="strava-picker-row" style={pickerRowStyle(run.imported)}>
                     <input
                       type="checkbox"
                       checked={checked}

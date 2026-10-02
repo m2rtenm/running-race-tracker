@@ -27,7 +27,7 @@ export default function ConsistencyHeatmap({ races }) {
   return (
     <StatCard title="Consistency & Streaks" icon="🔥">
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
+        <div className="consistency-grid" style={{ marginBottom: '20px' }}>
           <div style={{ padding: '12px', backgroundColor: '#f0fdf4', borderRadius: '8px', textAlign: 'center' }}>
             <p style={{ margin: '0', fontSize: '12px', color: '#666', textTransform: 'uppercase' }}>
               Current Streak
@@ -65,7 +65,7 @@ export default function ConsistencyHeatmap({ races }) {
         </div>
 
         <h4 style={{ margin: '16px 0 8px 0', color: '#333', fontSize: '14px' }}>Monthly Activity</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(30px, 1fr))', gap: '4px' }}>
+        <div className="consistency-heatmap">
           {monthlyFrequency.map((month) => {
             const [year, monthNum] = month.month.split('-');
             const monthName = new Date(year, monthNum - 1).toLocaleDateString('et-EE', { month: 'short' });
