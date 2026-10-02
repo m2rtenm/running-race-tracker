@@ -5,13 +5,11 @@ import {
   stravaGetAuthUrl,
   stravaGetStatus,
   stravaImportSelected,
-  stravaSync,
 } from '../api';
 
 export default function StravaConnect({ onSyncComplete }) {
   const [status, setStatus] = useState(null); // null | { connected, athleteName, connectedAt }
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
   const [pickerLoading, setPickerLoading] = useState(false);
@@ -54,30 +52,19 @@ export default function StravaConnect({ onSyncComplete }) {
     }
   }
 
-  async function handleSync() {
-    setSyncing(true);
+  function handleSync() {
     setSyncResult(null);
-    setError(null);
-    try {
-      const result = await stravaSync();
-      setSyncResult(result);
-      if (result.imported > 0 && onSyncComplete) {
-        onSyncComplete();
-      }
-    } catch (err) {
-      setError(err.message || 'Sync failed. Try reconnecting Strava.');
-    } finally {
-      setSyncing(false);
-    }
+    loadRecentRuns(true);
   }
 
-  async function loadRecentRuns() {
+  async function loadRecentRuns(importableOnly = false) {
     setPickerLoading(true);
     setError(null);
     try {
       const result = await stravaGetActivities();
-      setAvailableRuns(result.runs || []);
-      setSelectedRunIds((result.runs || []).filter((run) => !run.imported).map((run) => run.id));
+      const runs = result.runs || [];
+      setAvailableRuns(importableOnly ? runs.filter((run) => !run.imported) : runs);
+      setSelectedRunIds(runs.filter((run) => !run.imported).map((run) => run.id));
       setShowPicker(true);
     } catch (err) {
       setError(err.message || 'Failed to load Strava runs.');
@@ -200,10 +187,10 @@ export default function StravaConnect({ onSyncComplete }) {
             <>
               <button
                 onClick={handleSync}
-                disabled={syncing}
+                disabled={pickerLoading}
                 style={syncButtonStyle}
               >
-                {syncing ? '⏳ Syncing…' : '↻ Sync Runs'}
+                {pickerLoading ? '⏳ Loading…' : '↻ Sync Runs'}
               </button>
               <button
                 onClick={loadRecentRuns}
@@ -250,9 +237,9 @@ export default function StravaConnect({ onSyncComplete }) {
         <div style={pickerStyle}>
           <div style={pickerHeaderStyle}>
             <div>
-              <strong>Choose runs to import</strong>
+              <strong>Review runs to import</strong>
               <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                Select the activities you want to bring into your tracker.
+                Uncheck any runs you don't want to add. Previously imported runs are excluded.
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -322,7 +309,7 @@ export default function StravaConnect({ onSyncComplete }) {
 
           <div style={pickerListStyle}>
             {filteredRuns.length === 0 ? (
-              <p style={{ margin: 0, color: '#6b7280' }}>No recent runs found.</p>
+              <p style={{ margin: 0, color: '#6b7280' }}>No importable runs found.</p>
             ) : (
               filteredRuns.map((run) => {
                 const checked = selectedRunIds.includes(run.id);
@@ -362,7 +349,7 @@ export default function StravaConnect({ onSyncComplete }) {
               disabled={importingSelected || selectedRunIds.length === 0}
               style={importSelectedButtonStyle}
             >
-              {importingSelected ? '⏳ Importing…' : 'Import selected runs'}
+              {importingSelected ? '⏳ Importing…' : `Confirm import (${selectedRunIds.length})`}
             </button>
           </div>
         </div>

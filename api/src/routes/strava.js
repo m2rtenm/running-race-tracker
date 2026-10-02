@@ -358,7 +358,7 @@ router.get(`${basePath}/activities`, async (request) => {
   return {
     statusCode: 200,
     body: {
-      runs: runs.slice(0, 100).map((activity) => ({
+      runs: runs.map((activity) => ({
         id: String(activity.id),
         name: activity.name,
         type: activity.type || activity.sport_type,
@@ -388,7 +388,7 @@ router.post(`${basePath}/import-selected`, async (request) => {
   const selectedRuns = runs.filter((activity) => selectedSet.has(String(activity.id)));
 
   if (selectedRuns.length === 0) {
-    throw { statusCode: 404, body: { error: 'Selected runs were not found in your recent Strava activities' } };
+    throw { statusCode: 404, body: { error: 'Selected runs were not found in your Strava activities' } };
   }
 
   const imported = [];

@@ -264,16 +264,25 @@ export async function deleteStravaTokens(userId) {
 
 export async function getStravaImportedActivityIds(userId) {
   try {
-    const result = await docClient.send(
-      new QueryCommand({
-        TableName: RACES_TABLE,
-        KeyConditionExpression: 'userId = :userId',
-        FilterExpression: 'attribute_exists(stravaId)',
-        ExpressionAttributeValues: { ':userId': userId },
-        ProjectionExpression: 'stravaId',
-      })
-    );
-    return (result.Items || []).map((item) => item.stravaId);
+    const importedIds = [];
+    let lastEvaluatedKey;
+
+    do {
+      const result = await docClient.send(
+        new QueryCommand({
+          TableName: RACES_TABLE,
+          KeyConditionExpression: 'userId = :userId',
+          FilterExpression: 'attribute_exists(stravaId)',
+          ExpressionAttributeValues: { ':userId': userId },
+          ProjectionExpression: 'stravaId',
+          ExclusiveStartKey: lastEvaluatedKey,
+        })
+      );
+      importedIds.push(...(result.Items || []).map((item) => String(item.stravaId)));
+      lastEvaluatedKey = result.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    return importedIds;
   } catch (error) {
     console.error('Error getting imported Strava activity IDs:', error);
     throw error;
