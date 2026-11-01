@@ -5,15 +5,14 @@ data "archive_file" "lambda" {
 }
 
 resource "aws_lambda_function" "api" {
-  function_name                  = "running-race-tracker-api"
-  role                           = aws_iam_role.lambda_exec.arn
-  handler                        = "src/handler.handler"
-  runtime                        = "nodejs22.x"
-  filename                       = data.archive_file.lambda.output_path
-  source_code_hash               = data.archive_file.lambda.output_base64sha256
-  timeout                        = 30
-  memory_size                    = 512
-  reserved_concurrent_executions = var.api_lambda_reserved_concurrency
+  function_name    = "running-race-tracker-api"
+  role             = aws_iam_role.lambda_exec.arn
+  handler          = "src/handler.handler"
+  runtime          = "nodejs22.x"
+  filename         = data.archive_file.lambda.output_path
+  source_code_hash = data.archive_file.lambda.output_base64sha256
+  timeout          = 30
+  memory_size      = 512
 
   environment {
     variables = {

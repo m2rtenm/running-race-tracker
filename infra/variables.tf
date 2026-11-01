@@ -75,17 +75,6 @@ variable "api_throttling_burst_limit" {
   }
 }
 
-variable "api_lambda_reserved_concurrency" {
-  description = "Maximum concurrent executions of the API Lambda; excess requests are throttled."
-  type        = number
-  default     = 3
-
-  validation {
-    condition     = var.api_lambda_reserved_concurrency >= 1
-    error_message = "api_lambda_reserved_concurrency must be at least one."
-  }
-}
-
 variable "dynamodb_max_read_request_units" {
   description = "Per-table maximum DynamoDB on-demand read request units per second."
   type        = number

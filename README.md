@@ -109,7 +109,7 @@ terraform apply
 
 ### Cost guardrails
 
-The API Gateway stage defaults to 1 request per second with a burst of 5, the API Lambda is capped at 3 concurrent executions, and each on-demand DynamoDB table is capped at 10 read and 5 write request units per second. These limits can be adjusted with the corresponding `TF_VAR_*` variables in `infra/variables.tf`; exceeding a service cap causes throttling rather than scaling without limit.
+The API Gateway stage defaults to 1 request per second with a burst of 5, and each on-demand DynamoDB table is capped at 10 read and 5 write request units per second. These limits can be adjusted with the corresponding `TF_VAR_*` variables in `infra/variables.tf`; exceeding a service cap causes throttling rather than scaling without limit. Lambda reserved concurrency is not set, avoiding account-level concurrency quota conflicts.
 
 To receive monthly account-wide cost notifications, the budget alert email is set to `marten.mandla@outlook.com` by default. Change it with `TF_VAR_cost_alert_email` if needed:
 
