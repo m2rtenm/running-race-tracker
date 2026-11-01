@@ -114,10 +114,10 @@ export async function stravaGetStatus() {
   return request('/strava/status');
 }
 
-export async function stravaExchangeCode(code) {
+export async function stravaExchangeCode(code, state) {
   return request('/strava/exchange', {
     method: 'POST',
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ code, state }),
   });
 }
 

@@ -1,3 +1,4 @@
+import { createStravaOAuthState, isValidStravaOAuthState } from '../services/stravaOAuthState.js';
 import { Router } from '../router.js';
 import { SSMClient, GetParametersCommand } from '@aws-sdk/client-ssm';
 import {
@@ -177,7 +178,8 @@ router.get(`${basePath}/auth`, async (request) => {
     throw { statusCode: 401, body: { error: 'Unauthorized' } };
   }
 
-  const { clientId, redirectUri } = await getStravaConfig();
+  const { clientId, clientSecret, redirectUri } = await getStravaConfig();
+  const state = createStravaOAuthState(request.userId, clientSecret);
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -185,11 +187,12 @@ router.get(`${basePath}/auth`, async (request) => {
     response_type: 'code',
     approval_prompt: 'auto',
     scope: 'activity:read_all',
+    state,
   });
 
   return {
     statusCode: 200,
-    body: { authUrl: `https://www.strava.com/oauth/authorize?${params}` },
+    body: { authUrl: `https://www.strava.com/oauth/authorize?${params}`, state },
   };
 });
 
@@ -222,13 +225,16 @@ router.post(`${basePath}/exchange`, async (request) => {
     throw { statusCode: 401, body: { error: 'Unauthorized' } };
   }
 
-  const { code } = request.body || {};
+  const { code, state } = request.body || {};
 
   if (!code) {
     throw { statusCode: 400, body: { error: 'Authorization code is required' } };
   }
 
   const { clientId, clientSecret } = await getStravaConfig();
+  if (!isValidStravaOAuthState(state, request.userId, clientSecret)) {
+    throw { statusCode: 400, body: { error: 'Strava authorization state is invalid or expired. Please try again.' } };
+  }
 
   // Exchange authorization code for tokens
   const res = await fetch(STRAVA_TOKEN_URL, {

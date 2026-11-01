@@ -52,3 +52,80 @@ variable "auth_extra_callback_urls" {
   type        = list(string)
   default     = ["http://localhost:5173/"]
 }
+
+variable "api_throttling_rate_limit" {
+  description = "Maximum sustained API Gateway request rate for this app."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.api_throttling_rate_limit > 0
+    error_message = "api_throttling_rate_limit must be greater than zero."
+  }
+}
+
+variable "api_throttling_burst_limit" {
+  description = "Maximum API Gateway request burst for this app."
+  type        = number
+  default     = 5
+
+  validation {
+    condition     = var.api_throttling_burst_limit >= 1
+    error_message = "api_throttling_burst_limit must be at least one."
+  }
+}
+
+variable "api_lambda_reserved_concurrency" {
+  description = "Maximum concurrent executions of the API Lambda; excess requests are throttled."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.api_lambda_reserved_concurrency >= 1
+    error_message = "api_lambda_reserved_concurrency must be at least one."
+  }
+}
+
+variable "dynamodb_max_read_request_units" {
+  description = "Per-table maximum DynamoDB on-demand read request units per second."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.dynamodb_max_read_request_units >= 1
+    error_message = "dynamodb_max_read_request_units must be at least one."
+  }
+}
+
+variable "dynamodb_max_write_request_units" {
+  description = "Per-table maximum DynamoDB on-demand write request units per second."
+  type        = number
+  default     = 5
+
+  validation {
+    condition     = var.dynamodb_max_write_request_units >= 1
+    error_message = "dynamodb_max_write_request_units must be at least one."
+  }
+}
+
+variable "monthly_cost_budget_usd" {
+  description = "Account-wide monthly AWS cost budget in USD. Notifications are sent only when cost_alert_email is configured."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.monthly_cost_budget_usd > 0
+    error_message = "monthly_cost_budget_usd must be greater than zero."
+  }
+}
+
+variable "cost_alert_email" {
+  description = "Email address for account-wide AWS Budget alerts. Leave empty to disable budget notifications."
+  type        = string
+  default     = "marten.mandla@outlook.com"
+
+  validation {
+    condition     = var.cost_alert_email == "" || can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.cost_alert_email))
+    error_message = "cost_alert_email must be a valid email address or empty."
+  }
+}

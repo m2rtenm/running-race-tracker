@@ -1,6 +1,10 @@
 resource "aws_dynamodb_table" "races" {
-  name             = "running-race-tracker-races"
-  billing_mode     = "PAY_PER_REQUEST"
+  name         = "running-race-tracker-races"
+  billing_mode = "PAY_PER_REQUEST"
+  on_demand_throughput {
+    max_read_request_units  = var.dynamodb_max_read_request_units
+    max_write_request_units = var.dynamodb_max_write_request_units
+  }
   hash_key         = "userId"
   range_key        = "raceId"
   stream_enabled   = true
@@ -49,8 +53,12 @@ resource "aws_dynamodb_table" "races" {
 resource "aws_dynamodb_table" "strava_imports" {
   name         = "running-race-tracker-strava-imports"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "userId"
-  range_key    = "importId"
+  on_demand_throughput {
+    max_read_request_units  = var.dynamodb_max_read_request_units
+    max_write_request_units = var.dynamodb_max_write_request_units
+  }
+  hash_key  = "userId"
+  range_key = "importId"
 
   attribute {
     name = "userId"

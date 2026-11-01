@@ -107,6 +107,20 @@ terraform init
 terraform apply
 ```
 
+### Cost guardrails
+
+The API Gateway stage defaults to 1 request per second with a burst of 5, the API Lambda is capped at 3 concurrent executions, and each on-demand DynamoDB table is capped at 10 read and 5 write request units per second. These limits can be adjusted with the corresponding `TF_VAR_*` variables in `infra/variables.tf`; exceeding a service cap causes throttling rather than scaling without limit.
+
+To receive monthly account-wide cost notifications, the budget alert email is set to `marten.mandla@outlook.com` by default. Change it with `TF_VAR_cost_alert_email` if needed:
+
+```bash
+export TF_VAR_cost_alert_email="marten.mandla@outlook.com"
+export TF_VAR_monthly_cost_budget_usd=1
+terraform apply
+```
+
+AWS Budgets sends alerts at 50%, 80%, and 100% of the budget and when the forecast exceeds it. The budget is account-wide, and alerts are not a spending cutoff; AWS may continue charging after the limit is reached. Configure the budget email to enable notifications.
+
 If your wildcard cert is already in ACM (`us-east-1`), you can usually keep defaults. If needed, override:
 
 ```bash

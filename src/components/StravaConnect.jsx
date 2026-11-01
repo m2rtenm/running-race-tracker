@@ -45,7 +45,8 @@ export default function StravaConnect({ onSyncComplete }) {
   async function handleConnect() {
     setError(null);
     try {
-      const { authUrl } = await stravaGetAuthUrl();
+      const { authUrl, state } = await stravaGetAuthUrl();
+      sessionStorage.setItem('running-race-tracker-strava-oauth-state', state);
       window.location.href = authUrl;
     } catch (err) {
       setError(err.message || 'Failed to initiate Strava connection.');

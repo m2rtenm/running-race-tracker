@@ -1,14 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { stravaExchangeCode } from '../api';
 
 export default function StravaCallbackPage() {
   const [state, setState] = useState('processing'); // 'processing' | 'success' | 'error'
   const [errorMessage, setErrorMessage] = useState('');
+  const callbackStarted = useRef(false);
 
   useEffect(() => {
+    if (callbackStarted.current) return;
+    callbackStarted.current = true;
+
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const error = params.get('error');
+    const returnedState = params.get('state');
+    const expectedState = sessionStorage.getItem('running-race-tracker-strava-oauth-state');
+    sessionStorage.removeItem('running-race-tracker-strava-oauth-state');
+
+    if (!expectedState || returnedState !== expectedState) {
+      setState('error');
+      setErrorMessage('Strava authorization could not be verified. Please try connecting again.');
+      return;
+    }
 
     if (error) {
       setState('error');
@@ -22,7 +35,7 @@ export default function StravaCallbackPage() {
       return;
     }
 
-    stravaExchangeCode(code)
+    stravaExchangeCode(code, returnedState)
       .then(() => {
         setState('success');
         // Redirect to home after 2s
